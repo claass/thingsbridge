@@ -378,11 +378,15 @@ def create_todo_bulk(
 ) -> Dict[str, Any]:
     """Create multiple todos in one batch.
 
+    Use this when you need to create many todos at once.
+
     Args:
         idempotency_key: Client-supplied key for safe retries.
         items: List of {"title": str, "notes": str?} objects.
     Returns:
         Bulk response dict following guidelines.
+
+    See also: create_todo
     """
     validation_error = _validate_batch(items, idempotency_key)
     if validation_error:
@@ -414,7 +418,10 @@ def create_todo_bulk(
 
 
 def complete_todo_bulk(idempotency_key: str, items: List[str]) -> Dict[str, Any]:
-    """Complete many todos given their IDs."""
+    """Complete multiple todos in one batch.
+
+    See also: complete_todo
+    """
     if not isinstance(items, list):
         return {"error": "items must be list of todo IDs"}
     validation_error = _validate_batch(items, idempotency_key)
@@ -450,6 +457,8 @@ def move_todo_bulk(idempotency_key: str, items: List[Dict[str, Any]]) -> Dict[st
     """Move multiple todos in one call.
 
     Each item: {"todo_id": str, "destination_type": "area|project|list", "destination_name": str}
+
+    See also: move_todo
     """
     validation_error = _validate_batch(items, idempotency_key)
     if validation_error:
@@ -486,9 +495,11 @@ def move_todo_bulk(idempotency_key: str, items: List[Dict[str, Any]]) -> Dict[st
 def update_todo_bulk(
     idempotency_key: str, items: List[Dict[str, Any]]
 ) -> Dict[str, Any]:
-    """Update multiple todos.
+    """Update multiple todos in one batch.
 
     Each item: {"todo_id": str, "title?": str, "notes?": str, "when?": str, "deadline?": str}
+
+    See also: update_todo
     """
     validation_error = _validate_batch(items, idempotency_key)
     if validation_error:
