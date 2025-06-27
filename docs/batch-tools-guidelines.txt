@@ -1,0 +1,71 @@
+
+FastMCP (and Things 3’s AppleScript bridge) will let you loop over hundreds of items in a single `tell … end tell`, so the question isn’t *can* you batch but **how to expose that capability cleanly and safely in an MCP server**. Current industry patterns and the latest FastMCP documentation point to **separate, action-scoped batch tools** (“create_bulk”, “update_bulk”, etc.) rather than one mega-endpoint, with tight limits, idempotency keys, and partial-success reporting. Below are consolidated guidelines you can drop straight into your code-review checklist.
+
+================================================================
+1. Why not one giant “batch_edit” tool?
+----------------------------------------------------------------
+* **Schema clarity** – Separate tools keep JSON-Schema simple and discoverable; a single endpoint with a union type explodes the schema surface and confuses LLMs.
+* **Error semantics** – Industry APIs (Google Calendar, Microsoft Graph) return per-operation results inside a 200 OK wrapper so partial success is easy to model.
+* **Permission & rate limits** – Distinct tools let you rate-limit destructive actions (delete) differently from reads/creates.
+* **AppleScript performance** – You still hit Things only once per batch (`tell application "Things3"`) no matter how many tools you expose; the separation is at the MCP layer, not in AppleScript.
+
+================================================================
+2. Design guidelines for each *_bulk* tool
+----------------------------------------------------------------
+• Action‑scoped (`todo_create_bulk`, `todo_update_bulk`, `todo_move_bulk`)  
+• Homogeneous list‑of‑objects input (clean JSON‑Schema)  
+• Max items: **1 000** (AppleScript & token limits)  
+• Idempotency key per request + optional per‑item client_id  
+• Partial‑success array `{index, id?, error?}`  
+• Return order = request order  
+• Atomic per item, not per batch  
+• Use `ctx.report_progress` for long batches  
+• Wrap the AppleScript loop in **one `tell … end tell`**  
+• Internally chunk if caller exceeds 1 000
+
+================================================================
+Recommended response shape
+----------------------------------------------------------------
+{
+  "results": [
+    {"index": 0, "id": 1234},
+    {"index": 1, "error": {"code": "E_TAG", "msg": "Unknown tag"}},
+    {"index": 2, "id": 1236}
+  ],
+  "batch_id": "b9f7a…",
+  "processed": 3,
+  "succeeded": 2,
+  "failed": 1
+}
+
+Return HTTP 200 even for partial success—individual errors ride in the payload.
+
+================================================================
+3. AppleScript skeleton for *_bulk*
+----------------------------------------------------------------
+tell application "Things3"
+    repeat with i from 1 to count of theIDs
+        set t to to do id (item i of theIDs)
+        set name of t to (item i of theTitles)
+        -- other per-item edits here
+    end repeat
+end tell
+
+One `tell` block keeps a 500‑item batch under ~40 ms on an M1 Mac.
+
+================================================================
+4. Where to draw the batching line
+----------------------------------------------------------------
+Batch: create, update, move, complete/cancel, delete, tag ops, schedule.  
+Keep singular: UI-side actions (`ui_select`, `ui_quick_entry`) and reads (`todo_list_in_project`)—batching adds no value.
+
+================================================================
+5. Checklist before merging a new batch tool
+----------------------------------------------------------------
+1. Schema validated by FastMCP (`curl /schema | jq`).
+2. Unit test covers success + per-item failure.
+3. Retries verified idempotent with the same key.
+4. p95 latency < 50 ms for 200 items (local).
+5. Docs updated in `tools.yml` and README.
+
+

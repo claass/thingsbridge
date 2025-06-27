@@ -1,0 +1,34 @@
+[project]
+name = "thingsbridge"
+version = "0.1.0"
+description = "MCP server for Things 3 task manager integration"
+authors = [{name = "Hearthware", email = "dev@hearthware.com"}]
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "fastmcp>=2.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.21.0",
+    "black>=23.0.0",
+    "ruff>=0.1.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.black]
+line-length = 88
+target-version = ['py38']
+
+[tool.ruff]
+line-length = 88
+target-version = "py38"
+select = ["E", "F", "I", "N", "W"]
+
+[project.scripts]
+thingsbridge = "thingsbridge.server:main"
