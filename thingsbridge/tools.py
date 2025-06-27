@@ -298,7 +298,7 @@ def todo_search(
         return f"❌ Search failed: {str(e)}"
 
 
-def todo_list_today() -> str:
+def list_today_tasks() -> str:
     """
     Get today's scheduled tasks.
 
@@ -527,7 +527,7 @@ def todo_update_bulk(
 # ---- existing function below ----
 
 
-def todo_list_inbox() -> str:
+def list_inbox_items() -> str:
     """
     Get items in the inbox.
 

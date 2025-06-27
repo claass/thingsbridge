@@ -3,10 +3,18 @@
 from fastmcp import FastMCP
 from typing import Optional, List
 from .tools import (
-    todo_create, project_create, todo_update, todo_search, 
-    todo_list_today, todo_list_inbox, todo_complete,
+    todo_create,
+    project_create,
+    todo_update,
+    todo_search,
+    list_today_tasks,
+    list_inbox_items,
+    todo_complete,
     todo_move,
-    todo_create_bulk, todo_update_bulk, todo_move_bulk, todo_complete_bulk
+    todo_create_bulk,
+    todo_update_bulk,
+    todo_move_bulk,
+    todo_complete_bulk,
 )
 from .resources import areas_list, projects_list, today_tasks, inbox_items
 
@@ -25,8 +33,8 @@ todo_create_tool = mcp.tool(todo_create)
 project_create_tool = mcp.tool(project_create)
 todo_update_tool = mcp.tool(todo_update)
 todo_search_tool = mcp.tool(todo_search)
-todo_list_today_tool = mcp.tool(todo_list_today)
-todo_list_inbox_tool = mcp.tool(todo_list_inbox)
+list_today_tasks_tool = mcp.tool(list_today_tasks)
+list_inbox_items_tool = mcp.tool(list_inbox_items)
 todo_complete_tool = mcp.tool(todo_complete)
 todo_move_tool = mcp.tool(todo_move)
 # Register bulk operation tools

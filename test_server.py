@@ -15,8 +15,14 @@ async def test_server_startup():
     
     # Test that tools are registered
     expected_tools = [
-        "_hello_things", "create_todo", "create_project", "update_todo",
-        "search_things", "get_today_tasks", "get_inbox_items", "complete_todo"
+        "_hello_things",
+        "create_todo",
+        "create_project",
+        "update_todo",
+        "search_things",
+        "list_today_tasks",
+        "list_inbox_items",
+        "complete_todo",
     ]
     
     # Get registered tool names from tool manager
