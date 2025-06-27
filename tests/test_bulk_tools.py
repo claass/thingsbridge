@@ -3,10 +3,10 @@
 import uuid
 import pytest
 from thingsbridge.tools import (
-    todo_create_bulk,
-    todo_complete_bulk,
-    todo_move_bulk,
-    todo_update_bulk,
+    complete_todo_bulk,
+    create_todo_bulk,
+    move_todo_bulk,
+    update_todo_bulk,
 )
 
 # Helper
@@ -25,7 +25,7 @@ def things3_available():
 # ---------------- Validation tests (run even without Things 3) ---------------- #
 
 def test_create_bulk_validation_error():
-    resp = todo_create_bulk(idempotency_key="", items=[])
+    resp = create_todo_bulk(idempotency_key="", items=[])
     assert "error" in resp
 
 
@@ -33,7 +33,7 @@ def test_update_bulk_max_exceeded():
     items = [
         {"todo_id": "dummy", "title": "x"} for _ in range(1001)
     ]
-    resp = todo_update_bulk(idempotency_key=IDEMPOTENCY_KEY, items=items)
+    resp = update_todo_bulk(idempotency_key=IDEMPOTENCY_KEY, items=items)
     assert resp.get("error")
 
 
@@ -46,9 +46,9 @@ def test_create_complete_bulk_live():
         {"title": "Bulk A"},
         {"title": "Bulk B", "notes": "notes"},
     ]
-    resp = todo_create_bulk(idempotency_key=IDEMPOTENCY_KEY, items=items)
+    resp = create_todo_bulk(idempotency_key=IDEMPOTENCY_KEY, items=items)
     assert resp["succeeded"] == 2
     todo_ids = [r.get("id") for r in resp["results"]]
     # Complete them in bulk
-    resp2 = todo_complete_bulk(idempotency_key=IDEMPOTENCY_KEY, items=todo_ids)
+    resp2 = complete_todo_bulk(idempotency_key=IDEMPOTENCY_KEY, items=todo_ids)
     assert resp2["succeeded"] == 2

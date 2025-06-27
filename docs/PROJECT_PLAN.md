@@ -22,7 +22,7 @@ Build a Model Context Protocol (MCP) server that enables LLMs to interact with T
 - [x] **TOOL-002**: Implement `create_project` tool
 - [x] **TOOL-003**: Implement `update_todo` tool
 - [x] **TOOL-004**: Implement `complete_todo` tool
-- [x] **TOOL-005**: Implement `search_things` tool
+- [x] **TOOL-005**: Implement `search_todo` tool
 - [x] **TOOL-006**: Implement `get_today_tasks` tool
 - [x] **TOOL-007**: Implement `get_inbox_items` tool
 - [x] **TOOL-008**: Implement `move_todo` tool (added post-implementation)

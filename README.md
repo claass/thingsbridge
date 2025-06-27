@@ -40,7 +40,7 @@ By default it listens on `localhost:8000`. Use an MCP client such as FastMCP's H
 ### Example: bulk create
 
 ```bash
-curl -X POST http://localhost:8000/tools/todo_create_bulk \
+curl -X POST http://localhost:8000/tools/create_todo_bulk \
   -H 'Content-Type: application/json' \
   -d '{
         "idempotency_key": "123e4567",
@@ -55,20 +55,20 @@ curl -X POST http://localhost:8000/tools/todo_create_bulk \
 The response schema follows `docs/batch-tools-guidelines.txt` and includes per-item status information.
 
 Available tools:
-* `todo_create`
-* `project_create`
-* `todo_update`
-* `todo_search`
+* `create_todo`
+* `create_project`
+* `update_todo`
+* `search_todo`
 * `list_today_tasks`
 * `list_inbox_items`
-* `todo_complete`
-* `todo_move`
+* `complete_todo`
+* `move_todo`
 
 Available batch tools:
-* `todo_create_bulk`
-* `todo_update_bulk`
-* `todo_move_bulk`
-* `todo_complete_bulk`
+* `create_todo_bulk`
+* `update_todo_bulk`
+* `move_todo_bulk`
+* `complete_todo_bulk`
 
 ## Development
 
