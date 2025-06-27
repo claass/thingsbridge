@@ -5,8 +5,8 @@ from thingsbridge.tools import (
     todo_create,
     project_create,
     todo_search,
-    todo_list_today,
-    todo_list_inbox,
+    list_today_tasks,
+    list_inbox_items,
     todo_complete,
 )
 
@@ -71,7 +71,7 @@ def test_search_things():
 @pytest.mark.skipif(not things3_available(), reason="Things 3 not available")
 def test_get_today_tasks():
     """Test getting today's tasks."""
-    result = todo_list_today()
+    result = list_today_tasks()
     assert isinstance(result, str)
     assert "Today's Tasks" in result
     assert "items)" in result
@@ -80,7 +80,7 @@ def test_get_today_tasks():
 @pytest.mark.skipif(not things3_available(), reason="Things 3 not available")
 def test_get_inbox_items():
     """Test getting inbox items."""
-    result = todo_list_inbox()
+    result = list_inbox_items()
     assert isinstance(result, str)
     assert "Inbox" in result
     assert "items)" in result
@@ -95,5 +95,5 @@ def test_tools_handle_errors_gracefully():
     result = todo_create("Test")
     assert "❌" in result or "✅" in result  # Either error or success
 
-    result = todo_list_inbox()
+    result = list_inbox_items()
     assert isinstance(result, str)  # Should return a string either way

@@ -51,7 +51,18 @@ curl -X POST http://localhost:8000/tools/todo_create_bulk \
       }' | jq
 ```
 
+
 The response schema follows `docs/batch-tools-guidelines.txt` and includes per-item status information.
+
+Available tools:
+* `todo_create`
+* `project_create`
+* `todo_update`
+* `todo_search`
+* `list_today_tasks`
+* `list_inbox_items`
+* `todo_complete`
+* `todo_move`
 
 Available batch tools:
 * `todo_create_bulk`
