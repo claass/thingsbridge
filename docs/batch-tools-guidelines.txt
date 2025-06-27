@@ -12,7 +12,7 @@ FastMCP (and Things 3’s AppleScript bridge) will let you loop over hundreds of
 ================================================================
 2. Design guidelines for each *_bulk* tool
 ----------------------------------------------------------------
-• Action‑scoped (`todo_create_bulk`, `todo_update_bulk`, `todo_move_bulk`)  
+• Action‑scoped (`create_todo_bulk`, `update_todo_bulk`, `move_todo_bulk`)
 • Homogeneous list‑of‑objects input (clean JSON‑Schema)  
 • Max items: **1 000** (AppleScript & token limits)  
 • Idempotency key per request + optional per‑item client_id  

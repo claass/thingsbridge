@@ -1,14 +1,16 @@
 """MCP tools for Things 3 integration."""
 
 import logging
-from typing import Optional, List
-from datetime import datetime, date
-from .things3 import client, ThingsError
+from datetime import datetime
+from typing import Any, Dict, List, Optional
+
+from .resources import areas_list, projects_list
+from .things3 import ThingsError, client
 
 logger = logging.getLogger(__name__)
 
 
-def todo_create(
+def create_todo(
     title: str,
     notes: str = "",
     when: Optional[str] = None,
@@ -30,7 +32,7 @@ def todo_create(
     Returns:
         Success message with todo ID
 
-    See also: todo_create_bulk
+    See also: create_todo_bulk
     """
     try:
         # Ensure Things 3 is running
@@ -129,7 +131,7 @@ def todo_create(
         return f"❌ Failed to create todo: {str(e)}"
 
 
-def project_create(
+def create_project(
     title: str,
     notes: str = "",
     when: Optional[str] = None,
@@ -210,7 +212,7 @@ def project_create(
         return f"❌ Failed to create project: {str(e)}"
 
 
-def todo_search(
+def search_todo(
     query: str,
     limit: int = 10,
     project: Optional[str] = None,
@@ -347,7 +349,7 @@ def list_today_tasks() -> str:
 # BULK OPERATION TOOLS (ADV-004)
 ##############################
 import uuid
-from typing import List, Dict, Any
+from typing import List
 
 _MAX_BATCH_ITEMS = 1000
 
@@ -371,7 +373,7 @@ def _build_result(index: int, todo_id: str = None, error: str = None):
     return {"index": index, "id": todo_id}
 
 
-def todo_create_bulk(
+def create_todo_bulk(
     idempotency_key: str, items: List[Dict[str, Any]]
 ) -> Dict[str, Any]:
     """Create multiple todos in one batch.
@@ -411,7 +413,7 @@ def todo_create_bulk(
     }
 
 
-def todo_complete_bulk(idempotency_key: str, items: List[str]) -> Dict[str, Any]:
+def complete_todo_bulk(idempotency_key: str, items: List[str]) -> Dict[str, Any]:
     """Complete many todos given their IDs."""
     if not isinstance(items, list):
         return {"error": "items must be list of todo IDs"}
@@ -444,7 +446,7 @@ def todo_complete_bulk(idempotency_key: str, items: List[str]) -> Dict[str, Any]
     }
 
 
-def todo_move_bulk(idempotency_key: str, items: List[Dict[str, Any]]) -> Dict[str, Any]:
+def move_todo_bulk(idempotency_key: str, items: List[Dict[str, Any]]) -> Dict[str, Any]:
     """Move multiple todos in one call.
 
     Each item: {"todo_id": str, "destination_type": "area|project|list", "destination_name": str}
@@ -481,7 +483,7 @@ def todo_move_bulk(idempotency_key: str, items: List[Dict[str, Any]]) -> Dict[st
     }
 
 
-def todo_update_bulk(
+def update_todo_bulk(
     idempotency_key: str, items: List[Dict[str, Any]]
 ) -> Dict[str, Any]:
     """Update multiple todos.
@@ -572,7 +574,7 @@ def list_inbox_items() -> str:
         return f"❌ Failed to get inbox items: {str(e)}"
 
 
-def todo_update(
+def update_todo(
     todo_id: str,
     title: Optional[str] = None,
     notes: Optional[str] = None,
@@ -592,7 +594,7 @@ def todo_update(
     Returns:
         Success message
 
-    See also: todo_update_bulk
+    See also: update_todo_bulk
     """
     try:
         client.ensure_running()
@@ -662,7 +664,7 @@ def todo_update(
         return f"❌ Failed to update todo: {str(e)}"
 
 
-def todo_move(todo_id: str, destination_type: str, destination_name: str) -> str:
+def move_todo(todo_id: str, destination_type: str, destination_name: str) -> str:
     """
     Move a todo to a different area, project, or list in Things 3.
 
@@ -674,7 +676,7 @@ def todo_move(todo_id: str, destination_type: str, destination_name: str) -> str
     Returns:
         Success message
 
-    See also: todo_move_bulk
+    See also: move_todo_bulk
     """
     try:
         client.ensure_running()
@@ -730,7 +732,19 @@ def todo_move(todo_id: str, destination_type: str, destination_name: str) -> str
 # and are now implemented as MCP resources rather than tools.
 
 
-def todo_complete(todo_id: str) -> str:
+def list_areas() -> List[Dict[str, Any]]:
+    """Return available Things areas as JSON objects."""
+
+    return areas_list()
+
+
+def list_projects() -> List[Dict[str, Any]]:
+    """Return available Things projects as JSON objects."""
+
+    return projects_list()
+
+
+def complete_todo(todo_id: str) -> str:
     """
     Mark a todo as completed.
 
@@ -740,7 +754,7 @@ def todo_complete(todo_id: str) -> str:
     Returns:
         Success message
 
-    See also: todo_complete_bulk
+    See also: complete_todo_bulk
     """
     try:
         client.ensure_running()

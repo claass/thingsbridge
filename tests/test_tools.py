@@ -1,13 +1,15 @@
 """Tests for MCP tools."""
 
 import pytest
+
 from thingsbridge.tools import (
-    todo_create,
-    project_create,
-    todo_search,
-    list_today_tasks,
+    create_project,
+    create_todo,
+    list_areas,
     list_inbox_items,
-    todo_complete,
+    list_projects,
+    list_today_tasks,
+    search_todo,
 )
 
 
@@ -28,7 +30,7 @@ def things3_available():
 @pytest.mark.skipif(not things3_available(), reason="Things 3 not available")
 def test_create_todo_basic():
     """Test basic todo creation."""
-    result = todo_create("Test Todo from MCP", "Test notes")
+    result = create_todo("Test Todo from MCP", "Test notes")
     assert "✅ Created todo" in result
     assert "Test Todo from MCP" in result
     assert "ID:" in result
@@ -37,7 +39,7 @@ def test_create_todo_basic():
 @pytest.mark.skipif(not things3_available(), reason="Things 3 not available")
 def test_create_todo_with_scheduling():
     """Test todo creation with scheduling."""
-    result = todo_create("Scheduled Todo", "Due today", when="today")
+    result = create_todo("Scheduled Todo", "Due today", when="today")
     assert "✅ Created todo" in result
     assert "Scheduled Todo" in result
 
@@ -45,7 +47,7 @@ def test_create_todo_with_scheduling():
 @pytest.mark.skipif(not things3_available(), reason="Things 3 not available")
 def test_create_todo_with_tags():
     """Test todo creation with tags."""
-    result = todo_create("Tagged Todo", "Has tags", tags=["test", "mcp"])
+    result = create_todo("Tagged Todo", "Has tags", tags=["test", "mcp"])
     assert "✅ Created todo" in result
     assert "Tagged Todo" in result
 
@@ -53,7 +55,7 @@ def test_create_todo_with_tags():
 @pytest.mark.skipif(not things3_available(), reason="Things 3 not available")
 def test_create_project():
     """Test project creation."""
-    result = project_create("Test Project from MCP", "Project notes")
+    result = create_project("Test Project from MCP", "Project notes")
     assert "📁 Created project" in result
     assert "Test Project from MCP" in result
     assert "ID:" in result
@@ -62,7 +64,7 @@ def test_create_project():
 @pytest.mark.skipif(not things3_available(), reason="Things 3 not available")
 def test_search_things():
     """Test search functionality."""
-    result = todo_search("Test", tag="test")
+    result = search_todo("Test", tag="test")
     assert isinstance(result, str)
     assert "Found" in result
     assert "items matching" in result
@@ -86,14 +88,40 @@ def test_get_inbox_items():
     assert "items)" in result
 
 
+@pytest.mark.skipif(not things3_available(), reason="Things 3 not available")
+def test_list_areas_json():
+    """Areas wrapper should return JSON list."""
+    data = list_areas()
+    assert isinstance(data, list)
+    if data:
+        assert isinstance(data[0], dict)
+        assert "name" in data[0]
+
+
+@pytest.mark.skipif(not things3_available(), reason="Things 3 not available")
+def test_list_projects_json():
+    """Projects wrapper should return JSON list."""
+    data = list_projects()
+    assert isinstance(data, list)
+    if data:
+        assert isinstance(data[0], dict)
+        assert "name" in data[0]
+
+
 def test_tools_handle_errors_gracefully():
     """Test that tools handle errors gracefully when Things 3 is not available."""
     if things3_available():
         pytest.skip("Things 3 is available, cannot test error handling")
 
     # These should return error messages, not raise exceptions
-    result = todo_create("Test")
+    result = create_todo("Test")
     assert "❌" in result or "✅" in result  # Either error or success
 
     result = list_inbox_items()
     assert isinstance(result, str)  # Should return a string either way
+
+    areas = list_areas()
+    assert isinstance(areas, list)
+
+    projects = list_projects()
+    assert isinstance(projects, list)

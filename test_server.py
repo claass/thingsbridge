@@ -19,7 +19,7 @@ async def test_server_startup():
         "create_todo",
         "create_project",
         "update_todo",
-        "search_things",
+        "search_todo",
         "list_today_tasks",
         "list_inbox_items",
         "complete_todo",
