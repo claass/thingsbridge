@@ -235,7 +235,7 @@ def build_move_script(
         tell application "Things3"
             set targetToDo to to do id "{safe_id}"
             set targetProject to project "{safe_destination}"
-            move targetToDo to targetProject
+            set project of targetToDo to targetProject
             return name of targetToDo
         end tell
         """
@@ -500,7 +500,7 @@ def build_batch_move_script(moves: list) -> str:
             move_commands.append(f'move targetToDo{i} to targetArea{i}')
         elif dest_type == "project":
             move_commands.append(f'set targetProject{i} to project "{dest_name}"')
-            move_commands.append(f'move targetToDo{i} to targetProject{i}')
+            move_commands.append(f'set project of targetToDo{i} to targetProject{i}')
         elif dest_type == "list":
             move_commands.append(f'set targetList{i} to list "{dest_name}"')
             move_commands.append(f'move targetToDo{i} to targetList{i}')
