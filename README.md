@@ -112,6 +112,8 @@ Available batch tools:
 * `update_todo_bulk`
 * `move_todo_bulk`
 * `complete_todo_bulk`
+* `cancel_todo_bulk`
+* `delete_todo_bulk`
 
 ### Naming conventions
 

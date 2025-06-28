@@ -7,12 +7,21 @@ from typing import Any, Dict, List
 from .applescript_builder import (
     build_batch_completion_script,
     build_batch_move_script,
+    build_batch_cancellation_script,
+    build_batch_delete_script,
     build_batch_todo_creation_script,
     build_batch_update_script,
     build_tag_addition_script,
     build_move_to_list_script,
 )
-from .core_tools import complete_todo, create_todo, move_todo, update_todo
+from .core_tools import (
+    complete_todo,
+    cancel_todo,
+    delete_todo,
+    create_todo,
+    move_todo,
+    update_todo,
+)
 from .things3 import ThingsError, client
 from .utils import (
     _build_result,
@@ -30,6 +39,8 @@ _GENERIC_BULK_CACHE: Dict[str, Dict[str, Any]] = {
     "update": {},
     "move": {},
     "complete": {},
+    "cancel": {},
+    "delete": {},
 }
 
 
@@ -228,6 +239,128 @@ def complete_todo_bulk(idempotency_key: str, items: List[str]) -> Dict[str, Any]
         logger.error(f"Bulk complete operation failed: {e}")
         # Fallback to individual operations if batch fails
         return _fallback_complete_todo_bulk(idempotency_key, items)
+
+
+def cancel_todo_bulk(idempotency_key: str, items: List[str]) -> Dict[str, Any]:
+    """Cancel multiple todos in one batch."""
+    cached = _GENERIC_BULK_CACHE["cancel"].get(idempotency_key)
+    if cached:
+        return cached
+
+    if not isinstance(items, list):
+        return {"error": "items must be list of todo IDs"}
+    validation_error = _validate_batch(items, idempotency_key)
+    if validation_error:
+        return {"error": validation_error}
+
+    for idx, todo_id in enumerate(items):
+        if not todo_id or not isinstance(todo_id, str) or not todo_id.strip():
+            return {"error": f"Item {idx}: todo_id is required and cannot be empty"}
+
+    try:
+        client.ensure_running()
+
+        script = build_batch_cancellation_script(items)
+        result = client.executor.execute(script)
+
+        if not result.success:
+            raise ThingsError(f"Batch cancel failed: {result.error}")
+
+        todo_names = result.output.strip().split("|") if result.output.strip() else []
+
+        batch_id = uuid.uuid4().hex
+        results = []
+
+        for idx, todo_name in enumerate(todo_names):
+            if idx < len(items):
+                todo_id = items[idx]
+                if todo_name.strip():
+                    results.append(_build_result(idx, todo_id=todo_id))
+                else:
+                    results.append(_build_result(idx, error="Failed to cancel todo"))
+
+        while len(results) < len(items):
+            results.append(_build_result(len(results), error="Failed to cancel todo"))
+
+        succeeded = len([r for r in results if "error" not in r])
+        failed = len(results) - succeeded
+
+        batch_result = {
+            "results": results,
+            "batch_id": batch_id,
+            "processed": len(items),
+            "succeeded": succeeded,
+            "failed": failed,
+        }
+
+        _GENERIC_BULK_CACHE["cancel"][idempotency_key] = batch_result
+
+        return batch_result
+
+    except Exception as e:
+        logger.error(f"Bulk cancel operation failed: {e}")
+        return _fallback_cancel_todo_bulk(idempotency_key, items)
+
+
+def delete_todo_bulk(idempotency_key: str, items: List[str]) -> Dict[str, Any]:
+    """Delete multiple todos in one batch."""
+    cached = _GENERIC_BULK_CACHE["delete"].get(idempotency_key)
+    if cached:
+        return cached
+
+    if not isinstance(items, list):
+        return {"error": "items must be list of todo IDs"}
+    validation_error = _validate_batch(items, idempotency_key)
+    if validation_error:
+        return {"error": validation_error}
+
+    for idx, todo_id in enumerate(items):
+        if not todo_id or not isinstance(todo_id, str) or not todo_id.strip():
+            return {"error": f"Item {idx}: todo_id is required and cannot be empty"}
+
+    try:
+        client.ensure_running()
+
+        script = build_batch_delete_script(items)
+        result = client.executor.execute(script)
+
+        if not result.success:
+            raise ThingsError(f"Batch delete failed: {result.error}")
+
+        todo_names = result.output.strip().split("|") if result.output.strip() else []
+
+        batch_id = uuid.uuid4().hex
+        results = []
+
+        for idx, todo_name in enumerate(todo_names):
+            if idx < len(items):
+                todo_id = items[idx]
+                if todo_name.strip():
+                    results.append(_build_result(idx, todo_id=todo_id))
+                else:
+                    results.append(_build_result(idx, error="Failed to delete todo"))
+
+        while len(results) < len(items):
+            results.append(_build_result(len(results), error="Failed to delete todo"))
+
+        succeeded = len([r for r in results if "error" not in r])
+        failed = len(results) - succeeded
+
+        batch_result = {
+            "results": results,
+            "batch_id": batch_id,
+            "processed": len(items),
+            "succeeded": succeeded,
+            "failed": failed,
+        }
+
+        _GENERIC_BULK_CACHE["delete"][idempotency_key] = batch_result
+
+        return batch_result
+
+    except Exception as e:
+        logger.error(f"Bulk delete operation failed: {e}")
+        return _fallback_delete_todo_bulk(idempotency_key, items)
 
 
 def move_todo_bulk(idempotency_key: str, items: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -574,5 +707,71 @@ def _fallback_update_todo_bulk(
     }
 
     _GENERIC_BULK_CACHE["update"][idempotency_key] = batch_result
+
+    return batch_result
+
+
+def _fallback_cancel_todo_bulk(
+    idempotency_key: str, items: List[str]
+) -> Dict[str, Any]:
+    """Fallback to individual cancel operations when batch fails."""
+    batch_id = uuid.uuid4().hex
+    results = []
+    succeeded = failed = 0
+    for idx, todo_id in enumerate(items):
+        try:
+            res = cancel_todo(todo_id)
+            ok = not res.startswith("❌")
+            if ok:
+                results.append(_build_result(idx, todo_id=todo_id))
+                succeeded += 1
+            else:
+                results.append(_build_result(idx, error=res))
+                failed += 1
+        except Exception as e:
+            results.append(_build_result(idx, error=str(e)))
+            failed += 1
+    batch_result = {
+        "results": results,
+        "batch_id": batch_id,
+        "processed": len(items),
+        "succeeded": succeeded,
+        "failed": failed,
+    }
+
+    _GENERIC_BULK_CACHE["cancel"][idempotency_key] = batch_result
+
+    return batch_result
+
+
+def _fallback_delete_todo_bulk(
+    idempotency_key: str, items: List[str]
+) -> Dict[str, Any]:
+    """Fallback to individual delete operations when batch fails."""
+    batch_id = uuid.uuid4().hex
+    results = []
+    succeeded = failed = 0
+    for idx, todo_id in enumerate(items):
+        try:
+            res = delete_todo(todo_id)
+            ok = not res.startswith("❌")
+            if ok:
+                results.append(_build_result(idx, todo_id=todo_id))
+                succeeded += 1
+            else:
+                results.append(_build_result(idx, error=res))
+                failed += 1
+        except Exception as e:
+            results.append(_build_result(idx, error=str(e)))
+            failed += 1
+    batch_result = {
+        "results": results,
+        "batch_id": batch_id,
+        "processed": len(items),
+        "succeeded": succeeded,
+        "failed": failed,
+    }
+
+    _GENERIC_BULK_CACHE["delete"][idempotency_key] = batch_result
 
     return batch_result
