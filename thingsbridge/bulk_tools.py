@@ -9,6 +9,7 @@ from .applescript_builder import (
     build_batch_move_script,
     build_batch_todo_creation_script,
     build_batch_update_script,
+    build_tag_addition_script,
     build_move_to_list_script,
 )
 from .core_tools import complete_todo, create_todo, move_todo, update_todo
@@ -108,6 +109,26 @@ def create_todo_bulk(
                         _schedule_item(todo_id, when, "to do")
                     except Exception as e:
                         logger.warning(f"Failed to schedule todo {todo_id}: {e}")
+
+        # Apply tags after creation if provided
+        for idx, item in enumerate(processed_items):
+            tags = item.get("tags")
+            if tags and idx < len(todo_ids):
+                todo_id = todo_ids[idx].strip()
+                if todo_id:
+                    for tag in tags:
+                        safe_tag = tag.replace('"', '\\"')
+                        try:
+                            tag_script = build_tag_addition_script(todo_id, safe_tag)
+                            tag_result = client.executor.execute(tag_script)
+                            if not tag_result.success:
+                                logger.warning(
+                                    f"Failed to add tag '{tag}' to {todo_id}: {tag_result.error}"
+                                )
+                        except Exception as e:
+                            logger.warning(
+                                f"Error adding tag '{tag}' to {todo_id}: {e}"
+                            )
 
         succeeded = len([r for r in results if "error" not in r])
         failed = len(results) - succeeded
