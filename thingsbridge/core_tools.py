@@ -1,7 +1,7 @@
 """Core CRUD operations for Things 3 integration."""
 
 import logging
-from typing import List, Optional
+from typing import List, Optional, Dict
 
 from .applescript_builder import (
     build_todo_creation_script,
@@ -19,6 +19,9 @@ from .utils import _format_applescript_date, _handle_tool_errors, _schedule_item
 
 logger = logging.getLogger(__name__)
 
+# Cache for deduplicating create_todo operations when client_id is provided
+_CREATE_TODO_CACHE: Dict[str, str] = {}
+
 
 def create_todo(
     title: str,
@@ -27,6 +30,7 @@ def create_todo(
     deadline: Optional[str] = None,
     tags: Optional[List[str]] = None,
     list_name: Optional[str] = None,
+    client_id: Optional[str] = None,
 ) -> str:
     """
     Create a new todo in Things 3.
@@ -41,6 +45,7 @@ def create_todo(
             - Example: If application deadline is July 10th, use deadline="2024-07-10"
         tags: List of tag names to apply
         list_name: Name of project or area to add todo to
+        client_id: Optional stable identifier for idempotent creation
 
     Returns:
         Success message with todo ID
@@ -49,6 +54,11 @@ def create_todo(
     """
     try:
         # Ensure Things 3 is running
+        if client_id and client_id in _CREATE_TODO_CACHE:
+            cached_id = _CREATE_TODO_CACHE[client_id]
+            tag_info = f" with tags: {', '.join(tags)}" if tags else ""
+            return f"✅ Created todo '{title}'{tag_info} with ID: {cached_id}"
+
         client.ensure_running()
 
         # Escape quotes in strings
@@ -108,6 +118,8 @@ def create_todo(
                 logger.warning(f"Error adding tags: {e}")
 
         tag_info = f" with tags: {', '.join(tags)}" if tags else ""
+        if client_id:
+            _CREATE_TODO_CACHE[client_id] = todo_id
         return f"✅ Created todo '{title}'{tag_info} with ID: {todo_id}"
 
     except Exception as e:

@@ -46,8 +46,8 @@ curl -X POST http://localhost:8000/tools/create_todo_bulk \
   -d '{
         "idempotency_key": "123e4567",
         "items": [
-          {"title": "Buy milk"},
-          {"title": "Send report", "notes": "due tomorrow"}
+          {"title": "Buy milk", "client_id": "a1"},
+          {"title": "Send report", "notes": "due tomorrow", "client_id": "a2"}
         ]
       }' | jq
 ```
@@ -87,6 +87,10 @@ Bulk operations always return HTTP 200 with per-item results so you can retry sa
 }
 ```
 If the native batch fails entirely, Things Bridge automatically falls back to processing items one by one to ensure completion.
+
+Repeated calls with the same `idempotency_key` return the original
+batch result without executing AppleScript again. Provide a unique
+`client_id` per item when creating todos to deduplicate partial retries.
 
 Available tools:
 * `create_todo`

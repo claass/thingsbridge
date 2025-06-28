@@ -52,3 +52,15 @@ def test_create_complete_bulk_live():
     # Complete them in bulk
     resp2 = complete_todo_bulk(idempotency_key=IDEMPOTENCY_KEY, items=todo_ids)
     assert resp2["succeeded"] == 2
+
+
+@pytest.mark.skipif(not things3_available(), reason="Things 3 not available")
+def test_bulk_idempotency():
+    key = uuid.uuid4().hex
+    items = [
+        {"title": "Idem A", "client_id": "c1"},
+        {"title": "Idem B", "client_id": "c2"},
+    ]
+    first = create_todo_bulk(idempotency_key=key, items=items)
+    second = create_todo_bulk(idempotency_key=key, items=items)
+    assert first == second
