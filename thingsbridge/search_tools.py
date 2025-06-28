@@ -52,15 +52,20 @@ def search_todo(
 
         safe_query = _sanitize_applescript_string(query)
 
+        # Start with the base collection - area or project takes precedence
+        if area:
+            safe_area = _sanitize_applescript_string(area)
+            base_collection = f'to dos of area "{safe_area}"'
+        elif project:
+            safe_project = _sanitize_applescript_string(project)
+            base_collection = f'to dos of project "{safe_project}"'
+        else:
+            base_collection = "to dos"
+
+        # Build filtering conditions for the selected collection
         conditions = []
         if query:
             conditions.append(f'name contains "{safe_query}"')
-        if project:
-            safe_project = _sanitize_applescript_string(project)
-            conditions.append(f'project is project "{safe_project}"')
-        if area:
-            safe_area = _sanitize_applescript_string(area)
-            conditions.append(f'area is area "{safe_area}"')
         if tag:
             safe_tag = _sanitize_applescript_string(tag)
             conditions.append(f'tag names contains "{safe_tag}"')
@@ -92,11 +97,12 @@ def search_todo(
             except ValueError:
                 logger.warning(f"Invalid date format for scheduled_end: {scheduled_end}")
 
+        # Combine base collection with filtering conditions
         if conditions:
             condition_str = " and ".join(conditions)
-            search_clause = f"to dos whose {condition_str}"
+            search_clause = f"{base_collection} whose {condition_str}"
         else:
-            search_clause = "to dos"
+            search_clause = base_collection
 
         script = build_search_script(search_clause, limit, safe_query)
 

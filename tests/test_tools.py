@@ -304,3 +304,156 @@ def test_date_search_functions_without_things3():
 
     projects = list_projects()
     assert isinstance(projects, list)
+
+
+# =============================================================================
+# AREA AND PROJECT FILTERING TESTS
+# =============================================================================
+
+@pytest.mark.skipif(not things3_available(), reason="Things 3 not available")
+def test_search_todo_by_area():
+    """Test search_todo with area filtering."""
+    # Get available areas first
+    areas = list_areas()
+    if not areas:
+        pytest.skip("No areas available for testing")
+    
+    # Use the first available area
+    test_area = areas[0]["name"]
+    result = search_todo(query="", area=test_area)
+    
+    assert isinstance(result, str)
+    assert "Found" in result
+    assert "items matching" in result
+    # Should not contain the old error "Can't make area into type specifier"
+    assert "Can't make area into type specifier" not in result
+
+
+@pytest.mark.skipif(not things3_available(), reason="Things 3 not available")
+def test_search_todo_by_project():
+    """Test search_todo with project filtering."""
+    # Get available projects first
+    projects = list_projects()
+    if not projects:
+        pytest.skip("No projects available for testing")
+    
+    # Use the first available project
+    test_project = projects[0]["name"]
+    result = search_todo(query="", project=test_project)
+    
+    assert isinstance(result, str)
+    assert "Found" in result
+    assert "items matching" in result
+    # Should not contain the old error "Can't make project into type specifier"
+    assert "Can't make project into type specifier" not in result
+
+
+@pytest.mark.skipif(not things3_available(), reason="Things 3 not available")
+def test_search_todo_area_with_query():
+    """Test search_todo with both area filtering and text query."""
+    areas = list_areas()
+    if not areas:
+        pytest.skip("No areas available for testing")
+    
+    # Use the first available area with a simple query
+    test_area = areas[0]["name"]
+    result = search_todo(query="test", area=test_area)
+    
+    assert isinstance(result, str)
+    assert "Found" in result
+    assert "items matching 'test'" in result
+
+
+@pytest.mark.skipif(not things3_available(), reason="Things 3 not available")
+def test_search_todo_project_with_query():
+    """Test search_todo with both project filtering and text query."""
+    projects = list_projects()
+    if not projects:
+        pytest.skip("No projects available for testing")
+    
+    # Use the first available project with a simple query
+    test_project = projects[0]["name"]
+    result = search_todo(query="test", project=test_project)
+    
+    assert isinstance(result, str)
+    assert "Found" in result
+    assert "items matching 'test'" in result
+
+
+@pytest.mark.skipif(not things3_available(), reason="Things 3 not available")
+def test_search_todo_area_with_date_range():
+    """Test search_todo with area filtering and date range."""
+    areas = list_areas()
+    if not areas:
+        pytest.skip("No areas available for testing")
+    
+    test_area = areas[0]["name"]
+    result = search_todo(
+        query="",
+        area=test_area,
+        due_start="2025-01-01",
+        due_end="2025-12-31"
+    )
+    
+    assert isinstance(result, str)
+    assert "Found" in result
+
+
+@pytest.mark.skipif(not things3_available(), reason="Things 3 not available")
+def test_search_todo_project_with_status():
+    """Test search_todo with project filtering and status."""
+    projects = list_projects()
+    if not projects:
+        pytest.skip("No projects available for testing")
+    
+    test_project = projects[0]["name"]
+    result = search_todo(
+        query="",
+        project=test_project,
+        status="open"
+    )
+    
+    assert isinstance(result, str)
+    assert "Found" in result
+
+
+@pytest.mark.skipif(not things3_available(), reason="Things 3 not available")
+def test_search_todo_nonexistent_area():
+    """Test search_todo with nonexistent area."""
+    result = search_todo(query="", area="NonexistentArea12345")
+    
+    # Should either return 0 results or an error, but not crash
+    assert isinstance(result, str)
+    # Should not crash with AppleScript errors
+    assert "Can't make area into type specifier" not in result
+
+
+@pytest.mark.skipif(not things3_available(), reason="Things 3 not available")
+def test_search_todo_nonexistent_project():
+    """Test search_todo with nonexistent project."""
+    result = search_todo(query="", project="NonexistentProject12345")
+    
+    # Should either return 0 results or an error, but not crash
+    assert isinstance(result, str)
+    # Should not crash with AppleScript errors
+    assert "Can't make project into type specifier" not in result
+
+
+@pytest.mark.skipif(not things3_available(), reason="Things 3 not available")
+def test_search_todo_area_precedence_over_project():
+    """Test that area filtering takes precedence over project filtering."""
+    areas = list_areas()
+    projects = list_projects()
+    
+    if not areas or not projects:
+        pytest.skip("Need both areas and projects for this test")
+    
+    # Search with both area and project - area should take precedence
+    test_area = areas[0]["name"]
+    test_project = projects[0]["name"]
+    
+    result = search_todo(query="", area=test_area, project=test_project)
+    
+    assert isinstance(result, str)
+    assert "Found" in result
+    # The implementation should use area filtering (not both)
