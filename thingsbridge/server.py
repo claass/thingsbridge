@@ -5,19 +5,19 @@ from fastmcp import FastMCP
 from .resources import areas_list, inbox_items, projects_list, today_tasks
 from .tools import (
     complete_todo,
-    complete_todo_bulk,
+    complete_todo_bulk_auto,
     create_project,
     create_todo,
-    create_todo_bulk,
+    create_todo_bulk_auto,
     list_areas,
     list_inbox_items,
     list_projects,
     list_today_tasks,
     move_todo,
-    move_todo_bulk,
+    move_todo_bulk_auto,
     search_todo,
     update_todo,
-    update_todo_bulk,
+    update_todo_bulk_auto,
 )
 
 # Initialize the MCP server
@@ -52,11 +52,19 @@ list_projects_tool = mcp.tool(
 )
 complete_todo_tool = mcp.tool(complete_todo)
 move_todo_tool = mcp.tool(move_todo)
-# Register bulk operation tools
-create_bulk_tool = mcp.tool(create_todo_bulk)
-update_bulk_tool = mcp.tool(update_todo_bulk)
-move_bulk_tool = mcp.tool(move_todo_bulk)
-complete_bulk_tool = mcp.tool(complete_todo_bulk)
+# Register bulk operation tools with auto-generated keys
+create_bulk_tool = mcp.tool(
+    create_todo_bulk_auto, exclude_args=["idempotency_key"]
+)
+update_bulk_tool = mcp.tool(
+    update_todo_bulk_auto, exclude_args=["idempotency_key"]
+)
+move_bulk_tool = mcp.tool(
+    move_todo_bulk_auto, exclude_args=["idempotency_key"]
+)
+complete_bulk_tool = mcp.tool(
+    complete_todo_bulk_auto, exclude_args=["idempotency_key"]
+)
 
 
 # Register MCP resources using correct FastMCP syntax

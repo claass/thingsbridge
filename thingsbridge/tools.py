@@ -526,6 +526,39 @@ def update_todo_bulk(
     }
 
 
+# Convenience wrappers to auto-generate idempotency keys --------------------
+def create_todo_bulk_auto(
+    *, items: List[Dict[str, Any]], idempotency_key: Optional[str] = None
+) -> Dict[str, Any]:
+    """Wrapper for :func:`create_todo_bulk` with auto idempotency key."""
+
+    return create_todo_bulk(idempotency_key or uuid.uuid4().hex, items)
+
+
+def complete_todo_bulk_auto(
+    *, items: List[str], idempotency_key: Optional[str] = None
+) -> Dict[str, Any]:
+    """Wrapper for :func:`complete_todo_bulk` with auto idempotency key."""
+
+    return complete_todo_bulk(idempotency_key or uuid.uuid4().hex, items)
+
+
+def move_todo_bulk_auto(
+    *, items: List[Dict[str, Any]], idempotency_key: Optional[str] = None
+) -> Dict[str, Any]:
+    """Wrapper for :func:`move_todo_bulk` with auto idempotency key."""
+
+    return move_todo_bulk(idempotency_key or uuid.uuid4().hex, items)
+
+
+def update_todo_bulk_auto(
+    *, items: List[Dict[str, Any]], idempotency_key: Optional[str] = None
+) -> Dict[str, Any]:
+    """Wrapper for :func:`update_todo_bulk` with auto idempotency key."""
+
+    return update_todo_bulk(idempotency_key or uuid.uuid4().hex, items)
+
+
 # ---- existing function below ----
 
 

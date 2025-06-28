@@ -7,6 +7,10 @@ from thingsbridge.tools import (
     create_todo_bulk,
     move_todo_bulk,
     update_todo_bulk,
+    complete_todo_bulk_auto,
+    create_todo_bulk_auto,
+    move_todo_bulk_auto,
+    update_todo_bulk_auto,
 )
 
 # Helper
@@ -27,6 +31,13 @@ def things3_available():
 def test_create_bulk_validation_error():
     resp = create_todo_bulk(idempotency_key="", items=[])
     assert "error" in resp
+
+
+def test_auto_idempotency_generation():
+    """Wrapper should auto supply idempotency key."""
+    resp = create_todo_bulk_auto(items=[])
+    assert resp.get("error") == "`items` list cannot be empty"
+    assert "idempotency_key" not in resp.get("error", "")
 
 
 def test_update_bulk_max_exceeded():
