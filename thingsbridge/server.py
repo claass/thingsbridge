@@ -8,7 +8,11 @@ from .tools import (
     cancel_project,
     cancel_todo,
     complete_todo,
+    cancel_todo,
+    delete_todo,
     complete_todo_bulk,
+    cancel_todo_bulk,
+    delete_todo_bulk,
     create_project,
     create_tag,
     create_todo,
@@ -137,6 +141,24 @@ complete_todo_tool = mcp.tool(
     },
     tags={"action", "destructive"},
 )
+cancel_todo_tool = mcp.tool(
+    cancel_todo,
+    annotations={
+        "readOnlyHint": False,
+        "destructiveHint": True,
+        "idempotentHint": True,
+    },
+    tags={"action", "destructive"},
+)
+delete_todo_tool = mcp.tool(
+    delete_todo,
+    annotations={
+        "readOnlyHint": False,
+        "destructiveHint": True,
+        "idempotentHint": True,
+    },
+    tags={"action", "destructive"},
+)
 move_todo_tool = mcp.tool(
     move_todo,
     annotations={
@@ -176,6 +198,24 @@ move_bulk_tool = mcp.tool(
 )
 complete_bulk_tool = mcp.tool(
     complete_todo_bulk,
+    annotations={
+        "readOnlyHint": False,
+        "destructiveHint": True,
+        "idempotentHint": True,
+    },
+    tags={"batch", "action", "destructive"},
+)
+cancel_bulk_tool = mcp.tool(
+    cancel_todo_bulk,
+    annotations={
+        "readOnlyHint": False,
+        "destructiveHint": True,
+        "idempotentHint": True,
+    },
+    tags={"batch", "action", "destructive"},
+)
+delete_bulk_tool = mcp.tool(
+    delete_todo_bulk,
     annotations={
         "readOnlyHint": False,
         "destructiveHint": True,

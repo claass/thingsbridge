@@ -5,6 +5,8 @@ from .core_tools import (
     cancel_project,
     cancel_todo,
     complete_todo,
+    cancel_todo,
+    delete_todo,
     create_project,
     create_tag,
     create_todo,
@@ -30,6 +32,8 @@ from .search_tools import (
 )
 from .bulk_tools import (
     complete_todo_bulk,
+    cancel_todo_bulk,
+    delete_todo_bulk,
     create_todo_bulk,
     move_todo_bulk,
     update_todo_bulk,
@@ -66,6 +70,8 @@ __all__ = [
     # Bulk operations
     "create_todo_bulk",
     "update_todo_bulk",
+    "cancel_todo_bulk",
+    "delete_todo_bulk",
     "complete_todo_bulk",
     "move_todo_bulk",
 ]

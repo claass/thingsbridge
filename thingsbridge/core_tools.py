@@ -1,7 +1,7 @@
 """Core CRUD operations for Things 3 integration."""
 
 import logging
-from typing import List, Optional
+from typing import List, Optional, Dict
 
 from .applescript_builder import (
     build_todo_creation_script,
@@ -9,6 +9,8 @@ from .applescript_builder import (
     build_todo_update_script,
     build_move_script,
     build_completion_script,
+    build_cancellation_script,
+    build_delete_script,
     build_tag_addition_script,
     build_get_name_script,
     build_move_to_list_script,
@@ -20,6 +22,9 @@ from .utils import _format_applescript_date, _handle_tool_errors, _schedule_item
 
 logger = logging.getLogger(__name__)
 
+# Cache for deduplicating create_todo operations when client_id is provided
+_CREATE_TODO_CACHE: Dict[str, str] = {}
+
 
 def create_todo(
     title: str,
@@ -28,6 +33,7 @@ def create_todo(
     deadline: Optional[str] = None,
     tags: Optional[List[str]] = None,
     list_name: Optional[str] = None,
+    client_id: Optional[str] = None,
 ) -> str:
     """
     Create a new todo in Things 3.
@@ -42,6 +48,7 @@ def create_todo(
             - Example: If application deadline is July 10th, use deadline="2024-07-10"
         tags: List of tag names to apply
         list_name: Name of project or area to add todo to
+        client_id: Optional stable identifier for idempotent creation
 
     Returns:
         Success message with todo ID
@@ -50,6 +57,11 @@ def create_todo(
     """
     try:
         # Ensure Things 3 is running
+        if client_id and client_id in _CREATE_TODO_CACHE:
+            cached_id = _CREATE_TODO_CACHE[client_id]
+            tag_info = f" with tags: {', '.join(tags)}" if tags else ""
+            return f"✅ Created todo '{title}'{tag_info} with ID: {cached_id}"
+
         client.ensure_running()
 
         # Escape quotes in strings
@@ -109,6 +121,8 @@ def create_todo(
                 logger.warning(f"Error adding tags: {e}")
 
         tag_info = f" with tags: {', '.join(tags)}" if tags else ""
+        if client_id:
+            _CREATE_TODO_CACHE[client_id] = todo_id
         return f"✅ Created todo '{title}'{tag_info} with ID: {todo_id}"
 
     except Exception as e:
@@ -387,33 +401,26 @@ def cancel_todo(todo_id: str) -> str:
         todo_id: The ID of the todo to cancel
 
     Returns:
-        Success message
+        Success message with todo name
+
+    Raises:
+        ThingsError: If the cancel operation fails
     """
     try:
-        # Validate required parameters
         if not todo_id or not isinstance(todo_id, str) or not todo_id.strip():
             return "❌ todo_id is required and cannot be empty"
-        
+
         client.ensure_running()
 
         safe_id = todo_id.replace('"', '\\"')
-
-        script = f"""
-        tell application "Things3"
-            set targetToDo to to do id "{safe_id}"
-            set status of targetToDo to canceled
-            return name of targetToDo
-        end tell
-        """
-
+        script = build_cancellation_script(safe_id)
         result = client.executor.execute(script)
 
         if not result.success:
             raise ThingsError(f"Failed to cancel todo: {result.error}")
 
         todo_name = result.output
-        return f"❌ Canceled todo: {todo_name}"
-        
+        return f"🚫 Canceled todo: {todo_name}"
     except Exception as e:
         logger.error(f"Error canceling todo: {e}")
         return f"❌ Failed to cancel todo: {str(e)}"
@@ -526,26 +533,19 @@ def delete_todo(todo_id: str) -> str:
         todo_id: The ID of the todo to delete
 
     Returns:
-        Success message
+        Success message with todo name
+
+    Raises:
+        ThingsError: If the delete operation fails
     """
     try:
-        # Validate required parameters
         if not todo_id or not isinstance(todo_id, str) or not todo_id.strip():
             return "❌ todo_id is required and cannot be empty"
-        
+
         client.ensure_running()
 
         safe_id = todo_id.replace('"', '\\"')
-
-        script = f"""
-        tell application "Things3"
-            set targetToDo to to do id "{safe_id}"
-            set todoName to name of targetToDo
-            move targetToDo to list "Trash"
-            return todoName
-        end tell
-        """
-
+        script = build_delete_script(safe_id)
         result = client.executor.execute(script)
 
         if not result.success:
@@ -553,7 +553,6 @@ def delete_todo(todo_id: str) -> str:
 
         todo_name = result.output
         return f"🗑️ Deleted todo: {todo_name}"
-        
     except Exception as e:
         logger.error(f"Error deleting todo: {e}")
         return f"❌ Failed to delete todo: {str(e)}"
