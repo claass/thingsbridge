@@ -30,40 +30,148 @@ def _hello_things() -> str:
 
 
 # Register test tool
-hello_things = mcp.tool(_hello_things)
+hello_things = mcp.tool(
+    _hello_things,
+    annotations={
+        "readOnlyHint": True,
+        "destructiveHint": False,
+        "idempotentHint": True,
+    },
+    tags={"action"},
+)
 
 # Register core MCP tools
-create_todo_tool = mcp.tool(create_todo)
-create_project_tool = mcp.tool(create_project)
-update_todo_tool = mcp.tool(update_todo)
-search_todo_tool = mcp.tool(search_todo)
-list_today_tasks_tool = mcp.tool(list_today_tasks)
-list_inbox_items_tool = mcp.tool(list_inbox_items)
+create_todo_tool = mcp.tool(
+    create_todo,
+    annotations={
+        "readOnlyHint": False,
+        "destructiveHint": False,
+        "idempotentHint": False,
+    },
+    tags={"action"},
+)
+create_project_tool = mcp.tool(
+    create_project,
+    annotations={
+        "readOnlyHint": False,
+        "destructiveHint": False,
+        "idempotentHint": False,
+    },
+    tags={"action"},
+)
+update_todo_tool = mcp.tool(
+    update_todo,
+    annotations={
+        "readOnlyHint": False,
+        "destructiveHint": True,
+        "idempotentHint": True,
+    },
+    tags={"action", "destructive"},
+)
+search_todo_tool = mcp.tool(
+    search_todo,
+    annotations={
+        "readOnlyHint": True,
+        "destructiveHint": False,
+        "idempotentHint": True,
+    },
+    tags={"search"},
+)
+list_today_tasks_tool = mcp.tool(
+    list_today_tasks,
+    annotations={
+        "readOnlyHint": True,
+        "destructiveHint": False,
+        "idempotentHint": True,
+    },
+    tags={"listing"},
+)
+list_inbox_items_tool = mcp.tool(
+    list_inbox_items,
+    annotations={
+        "readOnlyHint": True,
+        "destructiveHint": False,
+        "idempotentHint": True,
+    },
+    tags={"listing"},
+)
 # list_* wrappers
 list_areas_tool = mcp.tool(
     list_areas,
-    annotations={"readOnlyHint": True},
+    annotations={
+        "readOnlyHint": True,
+        "destructiveHint": False,
+        "idempotentHint": True,
+    },
     tags={"listing"},
 )
 list_projects_tool = mcp.tool(
     list_projects,
-    annotations={"readOnlyHint": True},
+    annotations={
+        "readOnlyHint": True,
+        "destructiveHint": False,
+        "idempotentHint": True,
+    },
     tags={"listing"},
 )
-complete_todo_tool = mcp.tool(complete_todo)
-move_todo_tool = mcp.tool(move_todo)
+complete_todo_tool = mcp.tool(
+    complete_todo,
+    annotations={
+        "readOnlyHint": False,
+        "destructiveHint": True,
+        "idempotentHint": True,
+    },
+    tags={"action", "destructive"},
+)
+move_todo_tool = mcp.tool(
+    move_todo,
+    annotations={
+        "readOnlyHint": False,
+        "destructiveHint": True,
+        "idempotentHint": True,
+    },
+    tags={"action", "destructive"},
+)
 # Register bulk operation tools with auto-generated keys
 create_bulk_tool = mcp.tool(
-    create_todo_bulk_auto, exclude_args=["idempotency_key"]
+    create_todo_bulk_auto,
+    annotations={
+        "readOnlyHint": False,
+        "destructiveHint": False,
+        "idempotentHint": True,
+    },
+    tags={"batch", "action"},
+    exclude_args=["idempotency_key"],
 )
 update_bulk_tool = mcp.tool(
-    update_todo_bulk_auto, exclude_args=["idempotency_key"]
+    update_todo_bulk_auto,
+    annotations={
+        "readOnlyHint": False,
+        "destructiveHint": True,
+        "idempotentHint": True,
+    },
+    tags={"batch", "action", "destructive"},
+    exclude_args=["idempotency_key"],
 )
 move_bulk_tool = mcp.tool(
-    move_todo_bulk_auto, exclude_args=["idempotency_key"]
+    move_todo_bulk_auto,
+    annotations={
+        "readOnlyHint": False,
+        "destructiveHint": True,
+        "idempotentHint": True,
+    },
+    tags={"batch", "action", "destructive"},
+    exclude_args=["idempotency_key"],
 )
 complete_bulk_tool = mcp.tool(
-    complete_todo_bulk_auto, exclude_args=["idempotency_key"]
+    complete_todo_bulk_auto,
+    annotations={
+        "readOnlyHint": False,
+        "destructiveHint": True,
+        "idempotentHint": True,
+    },
+    tags={"batch", "action", "destructive"},
+    exclude_args=["idempotency_key"],
 )
 
 
