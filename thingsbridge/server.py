@@ -30,33 +30,145 @@ def _hello_things() -> str:
 
 
 # Register test tool
-hello_things = mcp.tool(_hello_things)
+hello_things = mcp.tool(
+    _hello_things,
+    annotations={
+        "readOnlyHint": True,
+        "destructiveHint": False,
+        "idempotentHint": True,
+    },
+    tags={"action"},
+)
 
 # Register core MCP tools
-create_todo_tool = mcp.tool(create_todo)
-create_project_tool = mcp.tool(create_project)
-update_todo_tool = mcp.tool(update_todo)
-search_todo_tool = mcp.tool(search_todo)
-list_today_tasks_tool = mcp.tool(list_today_tasks)
-list_inbox_items_tool = mcp.tool(list_inbox_items)
+create_todo_tool = mcp.tool(
+    create_todo,
+    annotations={
+        "readOnlyHint": False,
+        "destructiveHint": False,
+        "idempotentHint": False,
+    },
+    tags={"action"},
+)
+create_project_tool = mcp.tool(
+    create_project,
+    annotations={
+        "readOnlyHint": False,
+        "destructiveHint": False,
+        "idempotentHint": False,
+    },
+    tags={"action"},
+)
+update_todo_tool = mcp.tool(
+    update_todo,
+    annotations={
+        "readOnlyHint": False,
+        "destructiveHint": True,
+        "idempotentHint": True,
+    },
+    tags={"action", "destructive"},
+)
+search_todo_tool = mcp.tool(
+    search_todo,
+    annotations={
+        "readOnlyHint": True,
+        "destructiveHint": False,
+        "idempotentHint": True,
+    },
+    tags={"search"},
+)
+list_today_tasks_tool = mcp.tool(
+    list_today_tasks,
+    annotations={
+        "readOnlyHint": True,
+        "destructiveHint": False,
+        "idempotentHint": True,
+    },
+    tags={"listing"},
+)
+list_inbox_items_tool = mcp.tool(
+    list_inbox_items,
+    annotations={
+        "readOnlyHint": True,
+        "destructiveHint": False,
+        "idempotentHint": True,
+    },
+    tags={"listing"},
+)
 # list_* wrappers
 list_areas_tool = mcp.tool(
     list_areas,
-    annotations={"readOnlyHint": True},
+    annotations={
+        "readOnlyHint": True,
+        "destructiveHint": False,
+        "idempotentHint": True,
+    },
     tags={"listing"},
 )
 list_projects_tool = mcp.tool(
     list_projects,
-    annotations={"readOnlyHint": True},
+    annotations={
+        "readOnlyHint": True,
+        "destructiveHint": False,
+        "idempotentHint": True,
+    },
     tags={"listing"},
 )
-complete_todo_tool = mcp.tool(complete_todo)
-move_todo_tool = mcp.tool(move_todo)
+complete_todo_tool = mcp.tool(
+    complete_todo,
+    annotations={
+        "readOnlyHint": False,
+        "destructiveHint": True,
+        "idempotentHint": True,
+    },
+    tags={"action", "destructive"},
+)
+move_todo_tool = mcp.tool(
+    move_todo,
+    annotations={
+        "readOnlyHint": False,
+        "destructiveHint": True,
+        "idempotentHint": True,
+    },
+    tags={"action", "destructive"},
+)
 # Register bulk operation tools
-create_bulk_tool = mcp.tool(create_todo_bulk)
-update_bulk_tool = mcp.tool(update_todo_bulk)
-move_bulk_tool = mcp.tool(move_todo_bulk)
-complete_bulk_tool = mcp.tool(complete_todo_bulk)
+create_bulk_tool = mcp.tool(
+    create_todo_bulk,
+    annotations={
+        "readOnlyHint": False,
+        "destructiveHint": False,
+        "idempotentHint": True,
+    },
+    tags={"batch", "action"},
+)
+update_bulk_tool = mcp.tool(
+    update_todo_bulk,
+    annotations={
+        "readOnlyHint": False,
+        "destructiveHint": True,
+        "idempotentHint": True,
+    },
+    tags={"batch", "action", "destructive"},
+)
+move_bulk_tool = mcp.tool(
+    move_todo_bulk,
+    annotations={
+        "readOnlyHint": False,
+        "destructiveHint": True,
+        "idempotentHint": True,
+    },
+    tags={"batch", "action", "destructive"},
+)
+complete_bulk_tool = mcp.tool(
+    complete_todo_bulk,
+    annotations={
+        "readOnlyHint": False,
+        "destructiveHint": True,
+        "idempotentHint": True,
+    },
+    tags={"batch", "action", "destructive"},
+)
 
 
 # Register MCP resources using correct FastMCP syntax
