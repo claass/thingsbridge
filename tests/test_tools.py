@@ -25,6 +25,7 @@ from thingsbridge.tools import (
     search_todo,
     update_todo,
 )
+from .test_helpers import create_todo_tracked, create_project_tracked, create_tag_tracked, unique_test_name
 
 
 # Only run these tests if Things 3 is available
@@ -44,9 +45,10 @@ def things3_available():
 @pytest.mark.skipif(not things3_available(), reason="Things 3 not available")
 def test_create_todo_basic():
     """Test basic todo creation."""
-    result = create_todo("Test Todo from MCP", "Test notes")
+    todo_title = unique_test_name("Todo from MCP")
+    result = create_todo_tracked(todo_title, "Test notes")
     assert "✅ Created todo" in result
-    assert "Test Todo from MCP" in result
+    assert todo_title in result
     assert "ID:" in result
 
 
@@ -552,7 +554,7 @@ def test_cancel_todo():
     # Cancel the todo
     cancel_result = cancel_todo(todo_id)
     assert isinstance(cancel_result, str)
-    assert ("❌ Canceled todo" in cancel_result) or ("❌" in cancel_result)
+    assert ("🚫 Canceled todo" in cancel_result) or ("❌" in cancel_result)
 
 
 @pytest.mark.skipif(not things3_available(), reason="Things 3 not available")
