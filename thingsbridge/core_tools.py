@@ -9,6 +9,8 @@ from .applescript_builder import (
     build_todo_update_script,
     build_move_script,
     build_completion_script,
+    build_cancellation_script,
+    build_delete_script,
     build_tag_addition_script,
     build_get_name_script,
     build_move_to_list_script,
@@ -385,3 +387,47 @@ def complete_todo(todo_id: str) -> str:
     except Exception as e:
         logger.error(f"Error completing todo: {e}")
         return f"❌ Failed to complete todo: {str(e)}"
+
+
+def cancel_todo(todo_id: str) -> str:
+    """Mark a todo as canceled."""
+    try:
+        if not todo_id or not isinstance(todo_id, str) or not todo_id.strip():
+            return "❌ todo_id is required and cannot be empty"
+
+        client.ensure_running()
+
+        safe_id = todo_id.replace('"', '\\"')
+        script = build_cancellation_script(safe_id)
+        result = client.executor.execute(script)
+
+        if not result.success:
+            raise ThingsError(f"Failed to cancel todo: {result.error}")
+
+        todo_name = result.output
+        return f"🚫 Canceled todo: {todo_name}"
+    except Exception as e:
+        logger.error(f"Error canceling todo: {e}")
+        return f"❌ Failed to cancel todo: {str(e)}"
+
+
+def delete_todo(todo_id: str) -> str:
+    """Delete a todo from Things."""
+    try:
+        if not todo_id or not isinstance(todo_id, str) or not todo_id.strip():
+            return "❌ todo_id is required and cannot be empty"
+
+        client.ensure_running()
+
+        safe_id = todo_id.replace('"', '\\"')
+        script = build_delete_script(safe_id)
+        result = client.executor.execute(script)
+
+        if not result.success:
+            raise ThingsError(f"Failed to delete todo: {result.error}")
+
+        todo_name = result.output
+        return f"🗑️ Deleted todo: {todo_name}"
+    except Exception as e:
+        logger.error(f"Error deleting todo: {e}")
+        return f"❌ Failed to delete todo: {str(e)}"

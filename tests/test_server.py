@@ -26,6 +26,8 @@ def test_all_expected_tools_registered():
         "list_today_tasks",
         "list_inbox_items",
         "complete_todo",
+        "cancel_todo",
+        "delete_todo",
         "move_todo",
         "list_areas",
         "list_projects",
@@ -38,6 +40,8 @@ def test_all_expected_tools_registered():
         "update_todo_bulk",
         "move_todo_bulk",
         "complete_todo_bulk",
+        "cancel_todo_bulk",
+        "delete_todo_bulk",
         # Test tool
         "_hello_things",
     ]
@@ -71,12 +75,16 @@ def test_new_tool_imports():
         search_due_this_week,
         search_scheduled_this_week,
         search_overdue,
+        cancel_todo_bulk,
+        delete_todo_bulk,
     )
     
     # Test that they are callable
     assert callable(search_due_this_week)
     assert callable(search_scheduled_this_week)
     assert callable(search_overdue)
+    assert callable(cancel_todo_bulk)
+    assert callable(delete_todo_bulk)
 
 def test_prompt_resources_exist():
     """Test that prompt resources are registered."""

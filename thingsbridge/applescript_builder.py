@@ -199,6 +199,33 @@ def build_completion_script(todo_id: str) -> str:
     """
 
 
+def build_cancellation_script(todo_id: str) -> str:
+    """Build AppleScript for canceling a todo."""
+    safe_id = _sanitize_applescript_string(todo_id)
+
+    return f"""
+    tell application "Things3"
+        set targetToDo to to do id "{safe_id}"
+        set status of targetToDo to canceled
+        return name of targetToDo
+    end tell
+    """
+
+
+def build_delete_script(todo_id: str) -> str:
+    """Build AppleScript for deleting a todo."""
+    safe_id = _sanitize_applescript_string(todo_id)
+
+    return f"""
+    tell application "Things3"
+        set targetToDo to to do id "{safe_id}"
+        set todoName to name of targetToDo
+        delete targetToDo
+        return todoName
+    end tell
+    """
+
+
 def build_move_script(
     todo_id: str, destination_type: str, destination_name: str
 ) -> str:
@@ -421,6 +448,72 @@ def build_batch_completion_script(todo_ids: list) -> str:
     tell application "Things3"
         {commands_str}
         
+        set resultNames to {result_list}
+        set resultText to ""
+        repeat with i from 1 to count of resultNames
+            set resultText to resultText & item i of resultNames
+            if i < count of resultNames then set resultText to resultText & "|"
+        end repeat
+        return resultText
+    end tell
+    """
+
+
+def build_batch_cancellation_script(todo_ids: list) -> str:
+    """Build AppleScript for canceling multiple todos."""
+    cancel_commands = []
+
+    for i, todo_id in enumerate(todo_ids):
+        safe_id = _sanitize_applescript_string(todo_id)
+        cancel_commands.append(
+            f"""
+        set targetToDo{i} to to do id \"{safe_id}\"
+        set todoName{i} to name of targetToDo{i}
+        set status of targetToDo{i} to canceled"""
+        )
+
+    result_names = [f"todoName{i}" for i in range(len(todo_ids))]
+    result_list = "{" + ", ".join(result_names) + "}"
+
+    commands_str = "\n            ".join(cancel_commands)
+
+    return f"""
+    tell application \"Things3\"
+        {commands_str}
+
+        set resultNames to {result_list}
+        set resultText to ""
+        repeat with i from 1 to count of resultNames
+            set resultText to resultText & item i of resultNames
+            if i < count of resultNames then set resultText to resultText & "|"
+        end repeat
+        return resultText
+    end tell
+    """
+
+
+def build_batch_delete_script(todo_ids: list) -> str:
+    """Build AppleScript for deleting multiple todos."""
+    delete_commands = []
+
+    for i, todo_id in enumerate(todo_ids):
+        safe_id = _sanitize_applescript_string(todo_id)
+        delete_commands.append(
+            f"""
+        set targetToDo{i} to to do id \"{safe_id}\"
+        set todoName{i} to name of targetToDo{i}
+        delete targetToDo{i}"""
+        )
+
+    result_names = [f"todoName{i}" for i in range(len(todo_ids))]
+    result_list = "{" + ", ".join(result_names) + "}"
+
+    commands_str = "\n            ".join(delete_commands)
+
+    return f"""
+    tell application \"Things3\"
+        {commands_str}
+
         set resultNames to {result_list}
         set resultText to ""
         repeat with i from 1 to count of resultNames

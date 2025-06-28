@@ -3,6 +3,8 @@
 # Import all tools from specialized modules
 from .core_tools import (
     complete_todo,
+    cancel_todo,
+    delete_todo,
     create_project,
     create_todo,
     move_todo,
@@ -20,6 +22,8 @@ from .search_tools import (
 )
 from .bulk_tools import (
     complete_todo_bulk,
+    cancel_todo_bulk,
+    delete_todo_bulk,
     create_todo_bulk,
     move_todo_bulk,
     update_todo_bulk,
@@ -32,6 +36,8 @@ __all__ = [
     "create_project", 
     "update_todo",
     "complete_todo",
+    "cancel_todo",
+    "delete_todo",
     "move_todo",
     # Search and listing
     "search_todo",
@@ -45,6 +51,8 @@ __all__ = [
     # Bulk operations
     "create_todo_bulk",
     "update_todo_bulk",
+    "cancel_todo_bulk",
+    "delete_todo_bulk",
     "complete_todo_bulk",
     "move_todo_bulk",
 ]

@@ -4,6 +4,8 @@ import uuid
 import pytest
 from thingsbridge.tools import (
     complete_todo_bulk,
+    cancel_todo_bulk,
+    delete_todo_bulk,
     create_todo_bulk,
     move_todo_bulk,
     update_todo_bulk,
@@ -38,6 +40,16 @@ def test_update_bulk_max_exceeded():
     items = [{"todo_id": "dummy", "title": "x"} for _ in range(1001)]
     resp = update_todo_bulk(idempotency_key=IDEMPOTENCY_KEY, items=items)
     assert resp.get("error")
+
+
+def test_cancel_bulk_validation_error():
+    resp = cancel_todo_bulk(idempotency_key="", items="notalist")
+    assert "error" in resp
+
+
+def test_delete_bulk_validation_error():
+    resp = delete_todo_bulk(idempotency_key="", items=[])
+    assert "error" in resp
 
 
 # ---------------- Live tests (require Things 3) ---------------- #
