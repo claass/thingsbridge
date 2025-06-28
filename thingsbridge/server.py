@@ -5,15 +5,25 @@ from fastmcp.prompts import Prompt
 
 from .resources import areas_list, inbox_items, projects_list, today_tasks
 from .tools import (
+    cancel_project,
+    cancel_todo,
     complete_todo,
     complete_todo_bulk,
     create_project,
+    create_tag,
     create_todo,
     create_todo_bulk,
+    delete_project,
+    delete_todo,
+    list_anytime_tasks,
     list_areas,
     list_inbox_items,
+    list_logbook_items,
     list_projects,
+    list_someday_tasks,
+    list_tags,
     list_today_tasks,
+    list_upcoming_tasks,
     move_todo,
     move_todo_bulk,
     search_due_this_week,
@@ -201,6 +211,104 @@ search_overdue_tool = mcp.tool(
         "idempotentHint": True,
     },
     tags={"search", "date-range"},
+)
+
+# Register new tools - Cancel operations
+cancel_todo_tool = mcp.tool(
+    cancel_todo,
+    annotations={
+        "readOnlyHint": False,
+        "destructiveHint": True,
+        "idempotentHint": True,
+    },
+    tags={"action", "destructive"},
+)
+cancel_project_tool = mcp.tool(
+    cancel_project,
+    annotations={
+        "readOnlyHint": False,
+        "destructiveHint": True,
+        "idempotentHint": True,
+    },
+    tags={"action", "destructive"},
+)
+
+# Register tag management tools
+list_tags_tool = mcp.tool(
+    list_tags,
+    annotations={
+        "readOnlyHint": True,
+        "destructiveHint": False,
+        "idempotentHint": True,
+    },
+    tags={"listing", "tag"},
+)
+create_tag_tool = mcp.tool(
+    create_tag,
+    annotations={
+        "readOnlyHint": False,
+        "destructiveHint": False,
+        "idempotentHint": True,
+    },
+    tags={"action", "tag"},
+)
+
+# Register additional list tools
+list_anytime_tasks_tool = mcp.tool(
+    list_anytime_tasks,
+    annotations={
+        "readOnlyHint": True,
+        "destructiveHint": False,
+        "idempotentHint": True,
+    },
+    tags={"listing"},
+)
+list_someday_tasks_tool = mcp.tool(
+    list_someday_tasks,
+    annotations={
+        "readOnlyHint": True,
+        "destructiveHint": False,
+        "idempotentHint": True,
+    },
+    tags={"listing"},
+)
+list_upcoming_tasks_tool = mcp.tool(
+    list_upcoming_tasks,
+    annotations={
+        "readOnlyHint": True,
+        "destructiveHint": False,
+        "idempotentHint": True,
+    },
+    tags={"listing"},
+)
+list_logbook_items_tool = mcp.tool(
+    list_logbook_items,
+    annotations={
+        "readOnlyHint": True,
+        "destructiveHint": False,
+        "idempotentHint": True,
+    },
+    tags={"listing"},
+)
+
+# Register delete operations
+delete_todo_tool = mcp.tool(
+    delete_todo,
+    annotations={
+        "readOnlyHint": False,
+        "destructiveHint": True,
+        "idempotentHint": False,
+    },
+    tags={"action", "destructive"},
+)
+delete_project_tool = mcp.tool(
+    delete_project,
+    annotations={
+        "readOnlyHint": False,
+        "destructiveHint": True,
+        "idempotentHint": False,
+    },
+    tags={"action", "destructive"},
 )
 
 

@@ -3,114 +3,127 @@
 import logging
 from typing import List, Dict, Any
 from .things3 import client, ThingsError
+from .cache import cached_resource
 
 logger = logging.getLogger(__name__)
 
+def _fetch_areas_uncached() -> List[Dict[str, Any]]:
+    """Fetch areas from Things 3 without caching."""
+    client.ensure_running()
+    
+    script = '''
+    tell application "Things3"
+        set allAreas to areas
+        set areaCount to count of allAreas
+        set jsonList to ""
+        
+        repeat with i from 1 to areaCount
+            set currentArea to item i of allAreas
+            set areaName to name of currentArea
+            set areaId to id of currentArea
+            
+            if i > 1 then
+                set jsonList to jsonList & ","
+            end if
+            
+            set jsonList to jsonList & "{\\"name\\":\\"" & areaName & "\\",\\"id\\":\\"" & areaId & "\\"}"
+        end repeat
+        
+        return "[" & jsonList & "]"
+    end tell
+    '''
+    
+    result = client.executor.execute(script)
+    
+    if not result.success:
+        raise ThingsError(f"Failed to get areas: {result.error}")
+    
+    # Parse the JSON-like response
+    import json
+    try:
+        areas_data = json.loads(result.output)
+        return [{"name": area["name"], "id": area["id"], "type": "area"} for area in areas_data]
+    except json.JSONDecodeError:
+        logger.error(f"Failed to parse areas JSON: {result.output}")
+        return []
+
+
+@cached_resource("areas_list", ttl_seconds=300)  # 5 minutes
 def areas_list() -> List[Dict[str, Any]]:
     """
-    MCP resource providing list of available areas.
+    MCP resource providing list of available areas (cached for 5 minutes).
     
     Returns:
         List of area objects with name and metadata
     """
     try:
-        client.ensure_running()
-        
-        script = '''
-        tell application "Things3"
-            set allAreas to areas
-            set areaCount to count of allAreas
-            set jsonList to ""
-            
-            repeat with i from 1 to areaCount
-                set currentArea to item i of allAreas
-                set areaName to name of currentArea
-                set areaId to id of currentArea
-                
-                if i > 1 then
-                    set jsonList to jsonList & ","
-                end if
-                
-                set jsonList to jsonList & "{\\"name\\":\\"" & areaName & "\\",\\"id\\":\\"" & areaId & "\\"}"
-            end repeat
-            
-            return "[" & jsonList & "]"
-        end tell
-        '''
-        
-        result = client.executor.execute(script)
-        
-        if not result.success:
-            raise ThingsError(f"Failed to get areas: {result.error}")
-        
-        # Parse the JSON-like response
-        import json
-        try:
-            areas_data = json.loads(result.output)
-            return [{"name": area["name"], "id": area["id"], "type": "area"} for area in areas_data]
-        except json.JSONDecodeError:
-            logger.error(f"Failed to parse areas JSON: {result.output}")
-            return []
-        
+        logger.debug("Fetching areas list (cache miss or expired)")
+        return _fetch_areas_uncached()
     except Exception as e:
         logger.error(f"Error getting areas resource: {e}")
         return []
 
+def _fetch_projects_uncached() -> List[Dict[str, Any]]:
+    """Fetch projects from Things 3 without caching."""
+    client.ensure_running()
+    
+    script = '''
+    tell application "Things3"
+        set allProjects to projects
+        set projectCount to count of allProjects
+        set jsonList to ""
+        
+        repeat with i from 1 to projectCount
+            set currentProject to item i of allProjects
+            set projectName to name of currentProject
+            set projectId to id of currentProject
+            
+            -- Get area name if project is in an area
+            set areaName to ""
+            try
+                set projectArea to area of currentProject
+                if projectArea is not missing value then
+                    set areaName to name of projectArea
+                end if
+            end try
+            
+            if i > 1 then
+                set jsonList to jsonList & ","
+            end if
+            
+            set jsonList to jsonList & "{\\"name\\":\\"" & projectName & "\\",\\"id\\":\\"" & projectId & "\\",\\"area\\":\\"" & areaName & "\\"}"
+        end repeat
+        
+        return "[" & jsonList & "]"
+    end tell
+    '''
+    
+    result = client.executor.execute(script)
+    
+    if not result.success:
+        raise ThingsError(f"Failed to get projects: {result.error}")
+    
+    # Parse the JSON-like response
+    import json
+    try:
+        projects_data = json.loads(result.output)
+        return [{"name": proj["name"], "id": proj["id"], "area": proj["area"], "type": "project"} for proj in projects_data]
+    except json.JSONDecodeError:
+        logger.error(f"Failed to parse projects JSON: {result.output}")
+        return []
+
+
+@cached_resource("projects_list", ttl_seconds=300)  # 5 minutes
 def projects_list() -> List[Dict[str, Any]]:
     """
-    MCP resource providing list of available projects.
+    MCP resource providing list of available projects (cached for 5 minutes).
     
     Returns:
         List of project objects with name, area, and metadata
     """
     try:
-        client.ensure_running()
-        
-        script = '''
-        tell application "Things3"
-            set allProjects to projects
-            set projectCount to count of allProjects
-            set jsonList to ""
-            
-            repeat with i from 1 to projectCount
-                set currentProject to item i of allProjects
-                set projectName to name of currentProject
-                set projectId to id of currentProject
-                
-                -- Get area name if project is in an area
-                set areaName to ""
-                try
-                    set projectArea to area of currentProject
-                    if projectArea is not missing value then
-                        set areaName to name of projectArea
-                    end if
-                end try
-                
-                if i > 1 then
-                    set jsonList to jsonList & ","
-                end if
-                
-                set jsonList to jsonList & "{\\"name\\":\\"" & projectName & "\\",\\"id\\":\\"" & projectId & "\\",\\"area\\":\\"" & areaName & "\\"}"
-            end repeat
-            
-            return "[" & jsonList & "]"
-        end tell
-        '''
-        
-        result = client.executor.execute(script)
-        
-        if not result.success:
-            raise ThingsError(f"Failed to get projects: {result.error}")
-        
-        # Parse the JSON-like response
-        import json
-        try:
-            projects_data = json.loads(result.output)
-            return [{"name": proj["name"], "id": proj["id"], "area": proj["area"], "type": "project"} for proj in projects_data]
-        except json.JSONDecodeError:
-            logger.error(f"Failed to parse projects JSON: {result.output}")
-            return []
-        
+        logger.debug("Fetching projects list (cache miss or expired)")
+        return _fetch_projects_uncached()
     except Exception as e:
         logger.error(f"Error getting projects resource: {e}")
         return []

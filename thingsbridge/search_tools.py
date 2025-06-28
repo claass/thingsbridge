@@ -5,6 +5,7 @@ from datetime import date, timedelta
 from typing import Any, Dict, List, Optional
 
 from .applescript_builder import build_search_script, build_list_script
+from .cache import cached_resource
 from .resources import areas_list, projects_list
 from .things3 import ThingsError, client
 from .utils import _format_applescript_date, _sanitize_applescript_string
@@ -227,3 +228,156 @@ def list_areas() -> List[Dict[str, Any]]:
 def list_projects() -> List[Dict[str, Any]]:
     """Return available Things projects as JSON objects."""
     return projects_list()
+
+
+def _fetch_tags_uncached() -> str:
+    """Fetch tags from Things 3 without caching."""
+    client.ensure_running()
+
+    script = '''
+    tell application "Things3"
+        set allTags to tags
+        set tagCount to count of allTags
+        set resultText to "Available Tags (" & tagCount & " tags):\\n\\n"
+        
+        repeat with i from 1 to tagCount
+            set currentTag to item i of allTags
+            set tagName to name of currentTag
+            set tagId to id of currentTag
+            
+            set resultText to resultText & "• " & tagName & " (ID: " & tagId & ")"
+            
+            -- Check for parent tag
+            try
+                set parentTag to parent tag of currentTag
+                if parentTag is not missing value then
+                    set parentName to name of parentTag
+                    set resultText to resultText & " [Parent: " & parentName & "]"
+                end if
+            end try
+            
+            set resultText to resultText & "\\n"
+        end repeat
+        
+        return resultText
+    end tell
+    '''
+
+    result = client.executor.execute(script)
+
+    if not result.success:
+        raise ThingsError(f"Failed to get tags: {result.error}")
+
+    return result.output
+
+
+@cached_resource("list_tags", ttl_seconds=300)  # 5 minutes
+def list_tags() -> str:
+    """
+    Get all available tags in Things 3 (cached for 5 minutes).
+
+    Returns:
+        Formatted list of tags
+    """
+    try:
+        logger.debug("Fetching tags list (cache miss or expired)")
+        return _fetch_tags_uncached()
+    except Exception as e:
+        logger.error(f"Error getting tags: {e}")
+        return f"❌ Failed to get tags: {str(e)}"
+
+
+def list_anytime_tasks() -> str:
+    """
+    Get items in the Anytime list.
+
+    Returns:
+        Formatted list of Anytime items
+    """
+    try:
+        client.ensure_running()
+
+        script = build_list_script("Anytime", "Anytime Tasks")
+
+        result = client.executor.execute(script)
+
+        if not result.success:
+            raise ThingsError(f"Failed to get Anytime tasks: {result.error}")
+
+        return result.output
+
+    except Exception as e:
+        logger.error(f"Error getting Anytime tasks: {e}")
+        return f"❌ Failed to get Anytime tasks: {str(e)}"
+
+
+def list_someday_tasks() -> str:
+    """
+    Get items in the Someday list.
+
+    Returns:
+        Formatted list of Someday items
+    """
+    try:
+        client.ensure_running()
+
+        script = build_list_script("Someday", "Someday Tasks")
+
+        result = client.executor.execute(script)
+
+        if not result.success:
+            raise ThingsError(f"Failed to get Someday tasks: {result.error}")
+
+        return result.output
+
+    except Exception as e:
+        logger.error(f"Error getting Someday tasks: {e}")
+        return f"❌ Failed to get Someday tasks: {str(e)}"
+
+
+def list_upcoming_tasks() -> str:
+    """
+    Get items in the Upcoming list.
+
+    Returns:
+        Formatted list of Upcoming items
+    """
+    try:
+        client.ensure_running()
+
+        script = build_list_script("Upcoming", "Upcoming Tasks")
+
+        result = client.executor.execute(script)
+
+        if not result.success:
+            raise ThingsError(f"Failed to get Upcoming tasks: {result.error}")
+
+        return result.output
+
+    except Exception as e:
+        logger.error(f"Error getting Upcoming tasks: {e}")
+        return f"❌ Failed to get Upcoming tasks: {str(e)}"
+
+
+def list_logbook_items() -> str:
+    """
+    Get completed items from the Logbook.
+
+    Returns:
+        Formatted list of completed items
+    """
+    try:
+        client.ensure_running()
+
+        script = build_list_script("Logbook", "Logbook (Completed Items)")
+
+        result = client.executor.execute(script)
+
+        if not result.success:
+            raise ThingsError(f"Failed to get Logbook items: {result.error}")
+
+        return result.output
+
+    except Exception as e:
+        logger.error(f"Error getting Logbook items: {e}")
+        return f"❌ Failed to get Logbook items: {str(e)}"

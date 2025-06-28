@@ -3,6 +3,7 @@
 import logging
 from typing import Dict, List, Optional, Any
 from .applescript import executor, AppleScriptResult
+from .cache import get_resource_cache
 
 logger = logging.getLogger(__name__)
 
@@ -17,10 +18,17 @@ class Things3Client:
         self.executor = executor
     
     def ensure_running(self) -> None:
-        """Ensure Things 3 is running."""
-        result = self.executor.ensure_things_running()
-        if not result.success:
-            raise ThingsError(f"Failed to launch Things 3: {result.error}")
+        """Ensure Things 3 is running (with caching)."""
+        cache = get_resource_cache()
+        
+        def check_and_launch():
+            result = self.executor.ensure_things_running()
+            if not result.success:
+                raise ThingsError(f"Failed to launch Things 3: {result.error}")
+            return True
+        
+        # Use shorter TTL for running state (30 seconds)
+        cache.get("things3_running_state", check_and_launch, ttl_seconds=30)
     
     def test_connection(self) -> Dict[str, Any]:
         """Test connection to Things 3."""

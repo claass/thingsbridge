@@ -13,6 +13,7 @@ from .applescript_builder import (
     build_get_name_script,
     build_move_to_list_script,
 )
+from .cache import invalidate_resource_cache
 from .resources import areas_list, projects_list
 from .things3 import ThingsError, client
 from .utils import _format_applescript_date, _handle_tool_errors, _schedule_item
@@ -182,6 +183,9 @@ def create_project(
         # Handle scheduling after creation using the 'schedule' command
         if when and when.lower() != "someday":
             _schedule_item(project_id, when, "project")
+
+        # Invalidate projects cache since we added a new project
+        invalidate_resource_cache("projects_list")
 
         return f"📁 Created project '{title}' with ID: {project_id}"
 
@@ -373,3 +377,228 @@ def complete_todo(todo_id: str) -> str:
     except Exception as e:
         logger.error(f"Error completing todo: {e}")
         return f"❌ Failed to complete todo: {str(e)}"
+
+
+def cancel_todo(todo_id: str) -> str:
+    """
+    Mark a todo as canceled (distinct from completed).
+
+    Args:
+        todo_id: The ID of the todo to cancel
+
+    Returns:
+        Success message
+    """
+    try:
+        # Validate required parameters
+        if not todo_id or not isinstance(todo_id, str) or not todo_id.strip():
+            return "❌ todo_id is required and cannot be empty"
+        
+        client.ensure_running()
+
+        safe_id = todo_id.replace('"', '\\"')
+
+        script = f"""
+        tell application "Things3"
+            set targetToDo to to do id "{safe_id}"
+            set status of targetToDo to canceled
+            return name of targetToDo
+        end tell
+        """
+
+        result = client.executor.execute(script)
+
+        if not result.success:
+            raise ThingsError(f"Failed to cancel todo: {result.error}")
+
+        todo_name = result.output
+        return f"❌ Canceled todo: {todo_name}"
+        
+    except Exception as e:
+        logger.error(f"Error canceling todo: {e}")
+        return f"❌ Failed to cancel todo: {str(e)}"
+
+
+def cancel_project(project_id: str) -> str:
+    """
+    Mark a project as canceled (distinct from completed).
+
+    Args:
+        project_id: The ID of the project to cancel
+
+    Returns:
+        Success message
+    """
+    try:
+        # Validate required parameters
+        if not project_id or not isinstance(project_id, str) or not project_id.strip():
+            return "❌ project_id is required and cannot be empty"
+        
+        client.ensure_running()
+
+        safe_id = project_id.replace('"', '\\"')
+
+        script = f"""
+        tell application "Things3"
+            set targetProject to project id "{safe_id}"
+            set status of targetProject to canceled
+            return name of targetProject
+        end tell
+        """
+
+        result = client.executor.execute(script)
+
+        if not result.success:
+            raise ThingsError(f"Failed to cancel project: {result.error}")
+
+        project_name = result.output
+        return f"❌ Canceled project: {project_name}"
+        
+    except Exception as e:
+        logger.error(f"Error canceling project: {e}")
+        return f"❌ Failed to cancel project: {str(e)}"
+
+
+def create_tag(name: str, parent_tag: Optional[str] = None) -> str:
+    """
+    Create a new tag in Things 3.
+
+    Args:
+        name: The tag name (required)
+        parent_tag: Optional parent tag name to create a hierarchical relationship
+
+    Returns:
+        Success message with tag details
+    """
+    try:
+        # Validate required parameters
+        if not name or not isinstance(name, str) or not name.strip():
+            return "❌ tag name is required and cannot be empty"
+        
+        client.ensure_running()
+
+        safe_name = name.replace('"', '\\"')
+
+        script = f'''
+        tell application "Things3"
+            set newTag to make new tag with properties {{name:"{safe_name}"}}
+            set tagId to id of newTag
+            '''
+
+        # Add parent tag relationship if specified
+        if parent_tag:
+            safe_parent = parent_tag.replace('"', '\\"')
+            script += f'''
+            try
+                set parentTagObj to tag "{safe_parent}"
+                set parent tag of newTag to parentTagObj
+            end try
+            '''
+
+        script += '''
+            return name of newTag & " (ID: " & tagId & ")"
+        end tell
+        '''
+
+        result = client.executor.execute(script)
+
+        if not result.success:
+            raise ThingsError(f"Failed to create tag: {result.error}")
+
+        tag_info = result.output
+        parent_info = f" under parent '{parent_tag}'" if parent_tag else ""
+        
+        # Invalidate tags cache since we added a new tag
+        invalidate_resource_cache("list_tags")
+        
+        return f"🏷️ Created tag: {tag_info}{parent_info}"
+        
+    except Exception as e:
+        logger.error(f"Error creating tag: {e}")
+        return f"❌ Failed to create tag: {str(e)}"
+
+
+def delete_todo(todo_id: str) -> str:
+    """
+    Delete a todo (move it to Trash).
+
+    Args:
+        todo_id: The ID of the todo to delete
+
+    Returns:
+        Success message
+    """
+    try:
+        # Validate required parameters
+        if not todo_id or not isinstance(todo_id, str) or not todo_id.strip():
+            return "❌ todo_id is required and cannot be empty"
+        
+        client.ensure_running()
+
+        safe_id = todo_id.replace('"', '\\"')
+
+        script = f"""
+        tell application "Things3"
+            set targetToDo to to do id "{safe_id}"
+            set todoName to name of targetToDo
+            move targetToDo to list "Trash"
+            return todoName
+        end tell
+        """
+
+        result = client.executor.execute(script)
+
+        if not result.success:
+            raise ThingsError(f"Failed to delete todo: {result.error}")
+
+        todo_name = result.output
+        return f"🗑️ Deleted todo: {todo_name}"
+        
+    except Exception as e:
+        logger.error(f"Error deleting todo: {e}")
+        return f"❌ Failed to delete todo: {str(e)}"
+
+
+def delete_project(project_id: str) -> str:
+    """
+    Delete a project (move it to Trash).
+
+    Args:
+        project_id: The ID of the project to delete
+
+    Returns:
+        Success message
+    """
+    try:
+        # Validate required parameters
+        if not project_id or not isinstance(project_id, str) or not project_id.strip():
+            return "❌ project_id is required and cannot be empty"
+        
+        client.ensure_running()
+
+        safe_id = project_id.replace('"', '\\"')
+
+        script = f"""
+        tell application "Things3"
+            set targetProject to project id "{safe_id}"
+            set projectName to name of targetProject
+            move targetProject to list "Trash"
+            return projectName
+        end tell
+        """
+
+        result = client.executor.execute(script)
+
+        if not result.success:
+            raise ThingsError(f"Failed to delete project: {result.error}")
+
+        project_name = result.output
+        
+        # Invalidate projects cache since we deleted a project
+        invalidate_resource_cache("projects_list")
+        
+        return f"🗑️ Deleted project: {project_name}"
+        
+    except Exception as e:
+        logger.error(f"Error deleting project: {e}")
+        return f"❌ Failed to delete project: {str(e)}"

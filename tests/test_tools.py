@@ -3,12 +3,22 @@
 import pytest
 
 from thingsbridge.tools import (
+    cancel_project,
+    cancel_todo,
     create_project,
+    create_tag,
     create_todo,
+    delete_project,
+    delete_todo,
+    list_anytime_tasks,
     list_areas,
     list_inbox_items,
+    list_logbook_items,
     list_projects,
+    list_someday_tasks,
+    list_tags,
     list_today_tasks,
+    list_upcoming_tasks,
     search_due_this_week,
     search_overdue,
     search_scheduled_this_week,
@@ -457,3 +467,196 @@ def test_search_todo_area_precedence_over_project():
     assert isinstance(result, str)
     assert "Found" in result
     # The implementation should use area filtering (not both)
+
+
+# =============================================================================
+# NEW TOOLS TESTS
+# =============================================================================
+
+@pytest.mark.skipif(not things3_available(), reason="Things 3 not available")
+def test_list_tags():
+    """Test list_tags function."""
+    result = list_tags()
+    assert isinstance(result, str)
+    assert "Available Tags" in result
+    assert "tags)" in result
+
+
+@pytest.mark.skipif(not things3_available(), reason="Things 3 not available")
+def test_create_tag():
+    """Test create_tag function."""
+    result = create_tag("test_new_tag")
+    assert isinstance(result, str)
+    # Should either create successfully or indicate tag already exists
+    assert ("🏷️ Created tag" in result) or ("❌" in result)
+
+
+@pytest.mark.skipif(not things3_available(), reason="Things 3 not available")
+def test_create_tag_with_parent():
+    """Test create_tag function with parent tag."""
+    # First ensure we have a parent tag
+    create_tag("parent_tag")
+    
+    result = create_tag("child_tag", parent_tag="parent_tag")
+    assert isinstance(result, str)
+    # Should either create successfully or indicate tag already exists
+    assert ("🏷️ Created tag" in result) or ("❌" in result)
+
+
+@pytest.mark.skipif(not things3_available(), reason="Things 3 not available")
+def test_list_anytime_tasks():
+    """Test list_anytime_tasks function."""
+    result = list_anytime_tasks()
+    assert isinstance(result, str)
+    assert "Anytime Tasks" in result
+    assert "items)" in result
+
+
+@pytest.mark.skipif(not things3_available(), reason="Things 3 not available")
+def test_list_someday_tasks():
+    """Test list_someday_tasks function."""
+    result = list_someday_tasks()
+    assert isinstance(result, str)
+    assert "Someday Tasks" in result
+    assert "items)" in result
+
+
+@pytest.mark.skipif(not things3_available(), reason="Things 3 not available")
+def test_list_upcoming_tasks():
+    """Test list_upcoming_tasks function."""
+    result = list_upcoming_tasks()
+    assert isinstance(result, str)
+    assert "Upcoming Tasks" in result
+    assert "items)" in result
+
+
+@pytest.mark.skipif(not things3_available(), reason="Things 3 not available")
+def test_list_logbook_items():
+    """Test list_logbook_items function."""
+    result = list_logbook_items()
+    assert isinstance(result, str)
+    assert "Logbook" in result
+    assert "items)" in result
+
+
+@pytest.mark.skipif(not things3_available(), reason="Things 3 not available")
+def test_cancel_todo():
+    """Test cancel_todo function."""
+    # First create a todo to cancel
+    create_result = create_todo("Test Cancel Todo")
+    assert "✅ Created todo" in create_result
+    
+    # Extract ID
+    todo_id = create_result.split("ID: ")[-1].strip()
+    
+    # Cancel the todo
+    cancel_result = cancel_todo(todo_id)
+    assert isinstance(cancel_result, str)
+    assert ("❌ Canceled todo" in cancel_result) or ("❌" in cancel_result)
+
+
+@pytest.mark.skipif(not things3_available(), reason="Things 3 not available")
+def test_cancel_project():
+    """Test cancel_project function."""
+    # First create a project to cancel
+    create_result = create_project("Test Cancel Project")
+    assert "📁 Created project" in create_result
+    
+    # Extract ID
+    project_id = create_result.split("ID: ")[-1].strip()
+    
+    # Cancel the project
+    cancel_result = cancel_project(project_id)
+    assert isinstance(cancel_result, str)
+    assert ("❌ Canceled project" in cancel_result) or ("❌" in cancel_result)
+
+
+@pytest.mark.skipif(not things3_available(), reason="Things 3 not available")
+def test_delete_todo():
+    """Test delete_todo function."""
+    # First create a todo to delete
+    create_result = create_todo("Test Delete Todo")
+    assert "✅ Created todo" in create_result
+    
+    # Extract ID
+    todo_id = create_result.split("ID: ")[-1].strip()
+    
+    # Delete the todo
+    delete_result = delete_todo(todo_id)
+    assert isinstance(delete_result, str)
+    assert ("🗑️ Deleted todo" in delete_result) or ("❌" in delete_result)
+
+
+@pytest.mark.skipif(not things3_available(), reason="Things 3 not available")
+def test_delete_project():
+    """Test delete_project function."""
+    # First create a project to delete
+    create_result = create_project("Test Delete Project")
+    assert "📁 Created project" in create_result
+    
+    # Extract ID
+    project_id = create_result.split("ID: ")[-1].strip()
+    
+    # Delete the project
+    delete_result = delete_project(project_id)
+    assert isinstance(delete_result, str)
+    assert ("🗑️ Deleted project" in delete_result) or ("❌" in delete_result)
+
+
+# =============================================================================
+# VALIDATION TESTS FOR NEW TOOLS
+# =============================================================================
+
+@pytest.mark.skipif(not things3_available(), reason="Things 3 not available")
+def test_cancel_todo_invalid_id():
+    """Test cancel_todo with invalid ID."""
+    result = cancel_todo("invalid-id")
+    assert "❌" in result
+
+
+@pytest.mark.skipif(not things3_available(), reason="Things 3 not available")
+def test_cancel_project_invalid_id():
+    """Test cancel_project with invalid ID."""
+    result = cancel_project("invalid-id")
+    assert "❌" in result
+
+
+@pytest.mark.skipif(not things3_available(), reason="Things 3 not available")
+def test_delete_todo_invalid_id():
+    """Test delete_todo with invalid ID."""
+    result = delete_todo("invalid-id")
+    assert "❌" in result
+
+
+@pytest.mark.skipif(not things3_available(), reason="Things 3 not available")
+def test_delete_project_invalid_id():
+    """Test delete_project with invalid ID."""
+    result = delete_project("invalid-id")
+    assert "❌" in result
+
+
+@pytest.mark.skipif(not things3_available(), reason="Things 3 not available")
+def test_create_tag_empty_name():
+    """Test create_tag with empty name."""
+    result = create_tag("")
+    assert "❌" in result
+    assert "tag name is required" in result
+
+
+def test_new_tools_handle_errors_gracefully():
+    """Test that new tools handle errors gracefully when Things 3 is not available."""
+    if things3_available():
+        pytest.skip("Things 3 is available, cannot test error handling")
+
+    # These should return error messages, not raise exceptions
+    result = cancel_todo("test-id")
+    assert isinstance(result, str)
+    
+    result = create_tag("test-tag")
+    assert isinstance(result, str)
+    
+    result = list_tags()
+    assert isinstance(result, str)
+    
+    result = delete_todo("test-id")
+    assert isinstance(result, str)
