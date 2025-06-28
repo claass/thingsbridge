@@ -9,7 +9,11 @@ from thingsbridge.tools import (
     list_inbox_items,
     list_projects,
     list_today_tasks,
+    search_due_this_week,
+    search_overdue,
+    search_scheduled_this_week,
     search_todo,
+    update_todo,
 )
 
 
@@ -122,6 +126,181 @@ def test_tools_handle_errors_gracefully():
 
     areas = list_areas()
     assert isinstance(areas, list)
+
+
+# =============================================================================
+# NEW SCHEDULING LOGIC TESTS
+# =============================================================================
+
+@pytest.mark.skipif(not things3_available(), reason="Things 3 not available")
+def test_create_todo_scheduling_today():
+    """Test creating todo scheduled for today."""
+    result = create_todo("Test Today", when="today")
+    assert "✅ Created todo" in result
+    assert "Test Today" in result
+    # TODO: Could add verification that item appears in Today list
+
+
+@pytest.mark.skipif(not things3_available(), reason="Things 3 not available")
+def test_create_todo_scheduling_tomorrow():
+    """Test creating todo scheduled for tomorrow."""
+    result = create_todo("Test Tomorrow", when="tomorrow")
+    assert "✅ Created todo" in result
+    assert "Test Tomorrow" in result
+
+
+@pytest.mark.skipif(not things3_available(), reason="Things 3 not available")
+def test_create_todo_scheduling_specific_date():
+    """Test creating todo scheduled for specific date."""
+    result = create_todo("Test Specific Date", when="2025-12-31")
+    assert "✅ Created todo" in result
+    assert "Test Specific Date" in result
+
+
+@pytest.mark.skipif(not things3_available(), reason="Things 3 not available")
+def test_create_todo_scheduling_someday():
+    """Test creating todo for someday."""
+    result = create_todo("Test Someday", when="someday")
+    assert "✅ Created todo" in result
+    assert "Test Someday" in result
+
+
+@pytest.mark.skipif(not things3_available(), reason="Things 3 not available")
+def test_create_todo_with_both_when_and_deadline():
+    """Test creating todo with both start date and deadline."""
+    result = create_todo(
+        "Test Both Dates",
+        when="2025-07-01",
+        deadline="2025-07-10"
+    )
+    assert "✅ Created todo" in result
+    assert "Test Both Dates" in result
+
+
+@pytest.mark.skipif(not things3_available(), reason="Things 3 not available")
+def test_update_todo_scheduling():
+    """Test updating todo scheduling."""
+    # First create a todo
+    create_result = create_todo("Test Update Scheduling")
+    assert "✅ Created todo" in create_result
+    
+    # Extract ID (this is brittle but works for testing)
+    todo_id = create_result.split("ID: ")[-1].strip()
+    
+    # Update its scheduling
+    update_result = update_todo(todo_id, when="today")
+    assert "✏️ Updated todo" in update_result
+
+
+# =============================================================================
+# DATE SEARCH FUNCTION TESTS  
+# =============================================================================
+
+@pytest.mark.skipif(not things3_available(), reason="Things 3 not available")
+def test_search_due_this_week():
+    """Test searching for tasks due this week."""
+    result = search_due_this_week()
+    assert isinstance(result, str)
+    assert "Found" in result
+    # Should not error out
+
+
+@pytest.mark.skipif(not things3_available(), reason="Things 3 not available")
+def test_search_scheduled_this_week():
+    """Test searching for tasks scheduled this week."""
+    result = search_scheduled_this_week()
+    assert isinstance(result, str)
+    assert "Found" in result
+
+
+@pytest.mark.skipif(not things3_available(), reason="Things 3 not available")
+def test_search_overdue():
+    """Test searching for overdue tasks."""
+    result = search_overdue()
+    assert isinstance(result, str)
+    assert "Found" in result
+
+
+@pytest.mark.skipif(not things3_available(), reason="Things 3 not available")
+def test_search_todo_with_due_date_range():
+    """Test search_todo with due date range."""
+    result = search_todo(
+        query="",
+        due_start="2025-01-01",
+        due_end="2025-12-31"
+    )
+    assert isinstance(result, str)
+    assert "Found" in result
+
+
+@pytest.mark.skipif(not things3_available(), reason="Things 3 not available")
+def test_search_todo_with_scheduled_date_range():
+    """Test search_todo with scheduled date range."""
+    result = search_todo(
+        query="",
+        scheduled_start="2025-01-01",
+        scheduled_end="2025-12-31"
+    )
+    assert isinstance(result, str)
+    assert "Found" in result
+
+
+@pytest.mark.skipif(not things3_available(), reason="Things 3 not available")
+def test_search_todo_combined_filters():
+    """Test search_todo with multiple filters including dates."""
+    result = search_todo(
+        query="test",
+        status="open",
+        due_start="2025-01-01",
+        due_end="2025-12-31",
+        limit=5
+    )
+    assert isinstance(result, str)
+    assert "Found" in result
+
+
+# =============================================================================
+# ERROR CASE TESTS
+# =============================================================================
+
+@pytest.mark.skipif(not things3_available(), reason="Things 3 not available")
+def test_create_todo_invalid_date_format():
+    """Test creating todo with invalid date format."""
+    result = create_todo("Test Invalid Date", when="invalid-date")
+    # Should still create the todo but log a warning about the date
+    assert ("✅ Created todo" in result) or ("❌" in result)
+
+
+@pytest.mark.skipif(not things3_available(), reason="Things 3 not available")
+def test_search_todo_invalid_date_format():
+    """Test search with invalid date format."""
+    result = search_todo(
+        query="",
+        due_start="invalid-date"
+    )
+    # Should still work, just ignore the invalid date
+    assert isinstance(result, str)
+    assert "Found" in result
+
+
+@pytest.mark.skipif(not things3_available(), reason="Things 3 not available")
+def test_update_todo_invalid_id():
+    """Test updating todo with invalid ID."""
+    result = update_todo("invalid-id", title="New Title")
+    assert "❌" in result
+
+
+def test_date_search_functions_without_things3():
+    """Test that date search functions handle missing Things 3 gracefully."""
+    # These should return error messages, not raise exceptions
+    result = search_due_this_week()
+    assert isinstance(result, str)
+    
+    result = search_overdue()
+    assert isinstance(result, str)
+    
+    result = search_scheduled_this_week()
+    assert isinstance(result, str)
 
     projects = list_projects()
     assert isinstance(projects, list)

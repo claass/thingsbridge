@@ -1,0 +1,223 @@
+"""Search and listing functions for Things 3 integration."""
+
+import logging
+from datetime import date, timedelta
+from typing import Any, Dict, List, Optional
+
+from .applescript_builder import build_search_script, build_list_script
+from .resources import areas_list, projects_list
+from .things3 import ThingsError, client
+from .utils import _format_applescript_date, _sanitize_applescript_string
+
+logger = logging.getLogger(__name__)
+
+
+def search_todo(
+    query: str,
+    limit: int = 10,
+    project: Optional[str] = None,
+    area: Optional[str] = None,
+    tag: Optional[str] = None,
+    status: Optional[str] = None,
+    due_start: Optional[str] = None,
+    due_end: Optional[str] = None,
+    scheduled_start: Optional[str] = None,
+    scheduled_end: Optional[str] = None,
+) -> str:
+    """
+    Search for todos and projects in Things 3 with optional date filtering.
+
+    Args:
+        query: Search query for title/name
+        limit: Maximum number of results to return
+        project: Only show items from this project
+        area: Only show items from this area
+        tag: Only show items with this tag
+        status: Only show items with this status (open, completed, canceled)
+        due_start: Find items with due date >= this date (YYYY-MM-DD format)
+        due_end: Find items with due date <= this date (YYYY-MM-DD format)
+        scheduled_start: Find items scheduled >= this date (YYYY-MM-DD format) 
+        scheduled_end: Find items scheduled <= this date (YYYY-MM-DD format)
+
+    Examples:
+        search_todo("", due_start="2024-12-25", due_end="2024-12-31")  # Due this week
+        search_todo("meeting", scheduled_start="2024-12-01")  # Meetings scheduled from Dec 1
+        search_todo("", due_end="2024-12-31", status="open")  # Open items due by year end
+
+    Returns:
+        Formatted search results
+    """
+    try:
+        client.ensure_running()
+
+        safe_query = _sanitize_applescript_string(query)
+
+        conditions = []
+        if query:
+            conditions.append(f'name contains "{safe_query}"')
+        if project:
+            safe_project = _sanitize_applescript_string(project)
+            conditions.append(f'project is project "{safe_project}"')
+        if area:
+            safe_area = _sanitize_applescript_string(area)
+            conditions.append(f'area is area "{safe_area}"')
+        if tag:
+            safe_tag = _sanitize_applescript_string(tag)
+            conditions.append(f'tag names contains "{safe_tag}"')
+        if status:
+            conditions.append(f"status is {status.lower()}")
+
+        # Add date range conditions
+        if due_start:
+            try:
+                conditions.append(f'due date ≥ (date "{_format_applescript_date(due_start)}")')
+            except ValueError:
+                logger.warning(f"Invalid date format for due_start: {due_start}")
+
+        if due_end:
+            try:
+                conditions.append(f'due date ≤ (date "{_format_applescript_date(due_end)}")')
+            except ValueError:
+                logger.warning(f"Invalid date format for due_end: {due_end}")
+
+        if scheduled_start:
+            try:
+                conditions.append(f'activation date ≥ (date "{_format_applescript_date(scheduled_start)}")')
+            except ValueError:
+                logger.warning(f"Invalid date format for scheduled_start: {scheduled_start}")
+
+        if scheduled_end:
+            try:
+                conditions.append(f'activation date ≤ (date "{_format_applescript_date(scheduled_end)}")')
+            except ValueError:
+                logger.warning(f"Invalid date format for scheduled_end: {scheduled_end}")
+
+        if conditions:
+            condition_str = " and ".join(conditions)
+            search_clause = f"to dos whose {condition_str}"
+        else:
+            search_clause = "to dos"
+
+        script = build_search_script(search_clause, limit, safe_query)
+
+        result = client.executor.execute(script)
+
+        if not result.success:
+            raise ThingsError(f"Search failed: {result.error}")
+
+        return result.output
+
+    except Exception as e:
+        logger.error(f"Error searching: {e}")
+        return f"❌ Search failed: {str(e)}"
+
+
+def search_due_this_week() -> str:
+    """
+    Find all tasks due this week (next 7 days).
+    
+    Returns:
+        Formatted list of tasks due this week
+    """
+    today = date.today()
+    week_end = today + timedelta(days=7)
+    
+    return search_todo(
+        query="",
+        due_start=today.strftime("%Y-%m-%d"),
+        due_end=week_end.strftime("%Y-%m-%d"),
+        limit=50
+    )
+
+
+def search_scheduled_this_week() -> str:
+    """
+    Find all tasks scheduled this week (next 7 days).
+    
+    Returns:
+        Formatted list of tasks scheduled this week
+    """
+    today = date.today()
+    week_end = today + timedelta(days=7)
+    
+    return search_todo(
+        query="",
+        scheduled_start=today.strftime("%Y-%m-%d"),
+        scheduled_end=week_end.strftime("%Y-%m-%d"),
+        limit=50
+    )
+
+
+def search_overdue() -> str:
+    """
+    Find all overdue tasks (due date before today).
+    
+    Returns:
+        Formatted list of overdue tasks
+    """
+    yesterday = date.today() - timedelta(days=1)
+    
+    return search_todo(
+        query="",
+        due_end=yesterday.strftime("%Y-%m-%d"),
+        status="open",
+        limit=50
+    )
+
+
+def list_today_tasks() -> str:
+    """
+    Get today's scheduled tasks.
+
+    Returns:
+        Formatted list of today's tasks
+    """
+    try:
+        client.ensure_running()
+
+        script = build_list_script("Today", "Today's Tasks")
+
+        result = client.executor.execute(script)
+
+        if not result.success:
+            raise ThingsError(f"Failed to get today's tasks: {result.error}")
+
+        return result.output
+
+    except Exception as e:
+        logger.error(f"Error getting today's tasks: {e}")
+        return f"❌ Failed to get today's tasks: {str(e)}"
+
+
+def list_inbox_items() -> str:
+    """
+    Get items in the inbox.
+
+    Returns:
+        Formatted list of inbox items
+    """
+    try:
+        client.ensure_running()
+
+        script = build_list_script("Inbox", "Inbox")
+
+        result = client.executor.execute(script)
+
+        if not result.success:
+            raise ThingsError(f"Failed to get inbox items: {result.error}")
+
+        return result.output
+
+    except Exception as e:
+        logger.error(f"Error getting inbox items: {e}")
+        return f"❌ Failed to get inbox items: {str(e)}"
+
+
+def list_areas() -> List[Dict[str, Any]]:
+    """Return available Things areas as JSON objects."""
+    return areas_list()
+
+
+def list_projects() -> List[Dict[str, Any]]:
+    """Return available Things projects as JSON objects."""
+    return projects_list()
