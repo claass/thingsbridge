@@ -22,6 +22,14 @@ from .utils import (
 
 logger = logging.getLogger(__name__)
 
+# In-memory caches for idempotency
+_CREATE_BULK_CACHE: Dict[str, Dict[str, Dict[str, str]]] = {}
+_GENERIC_BULK_CACHE: Dict[str, Dict[str, Any]] = {
+    "update": {},
+    "move": {},
+    "complete": {},
+}
+
 
 def create_todo_bulk(
     idempotency_key: str, items: List[Dict[str, Any]]
@@ -38,6 +46,11 @@ def create_todo_bulk(
 
     See also: create_todo
     """
+    # Return cached result if this key was already processed
+    cached = _CREATE_BULK_CACHE.get(idempotency_key)
+    if cached:
+        return cached["batch"]
+
     validation_error = _validate_batch(items, idempotency_key)
     if validation_error:
         return {"error": validation_error}
@@ -95,14 +108,28 @@ def create_todo_bulk(
         
         succeeded = len([r for r in results if "error" not in r])
         failed = len(results) - succeeded
-        
-        return {
+
+        batch_result = {
             "results": results,
             "batch_id": batch_id,
             "processed": len(items),
             "succeeded": succeeded,
             "failed": failed,
         }
+
+        # Store results in idempotency cache
+        client_map: Dict[str, Dict[str, str]] = {}
+        for itm, res in zip(items, results):
+            cid = itm.get("client_id")
+            if cid:
+                client_map[cid] = {"id": res.get("id"), "error": res.get("error")}
+
+        _CREATE_BULK_CACHE[idempotency_key] = {
+            "batch": batch_result,
+            "clients": client_map,
+        }
+
+        return batch_result
         
     except Exception as e:
         logger.error(f"Bulk create operation failed: {e}")
@@ -115,6 +142,10 @@ def complete_todo_bulk(idempotency_key: str, items: List[str]) -> Dict[str, Any]
 
     See also: complete_todo
     """
+    cached = _GENERIC_BULK_CACHE["complete"].get(idempotency_key)
+    if cached:
+        return cached
+
     if not isinstance(items, list):
         return {"error": "items must be list of todo IDs"}
     validation_error = _validate_batch(items, idempotency_key)
@@ -156,14 +187,18 @@ def complete_todo_bulk(idempotency_key: str, items: List[str]) -> Dict[str, Any]
         
         succeeded = len([r for r in results if "error" not in r])
         failed = len(results) - succeeded
-        
-        return {
+
+        batch_result = {
             "results": results,
             "batch_id": batch_id,
             "processed": len(items),
             "succeeded": succeeded,
             "failed": failed,
         }
+
+        _GENERIC_BULK_CACHE["complete"][idempotency_key] = batch_result
+
+        return batch_result
         
     except Exception as e:
         logger.error(f"Bulk complete operation failed: {e}")
@@ -178,6 +213,10 @@ def move_todo_bulk(idempotency_key: str, items: List[Dict[str, Any]]) -> Dict[st
 
     See also: move_todo
     """
+    cached = _GENERIC_BULK_CACHE["move"].get(idempotency_key)
+    if cached:
+        return cached
+
     validation_error = _validate_batch(items, idempotency_key)
     if validation_error:
         return {"error": validation_error}
@@ -201,13 +240,17 @@ def move_todo_bulk(idempotency_key: str, items: List[Dict[str, Any]]) -> Dict[st
         except Exception as e:
             results.append(_build_result(idx, error=str(e)))
             failed += 1
-    return {
+    batch_result = {
         "results": results,
         "batch_id": batch_id,
         "processed": len(items),
         "succeeded": succeeded,
         "failed": failed,
     }
+
+    _GENERIC_BULK_CACHE["move"][idempotency_key] = batch_result
+
+    return batch_result
 
 
 def update_todo_bulk(
@@ -219,6 +262,10 @@ def update_todo_bulk(
 
     See also: update_todo
     """
+    cached = _GENERIC_BULK_CACHE["update"].get(idempotency_key)
+    if cached:
+        return cached
+
     validation_error = _validate_batch(items, idempotency_key)
     if validation_error:
         return {"error": validation_error}
@@ -246,13 +293,17 @@ def update_todo_bulk(
         except Exception as e:
             results.append(_build_result(idx, error=str(e)))
             failed += 1
-    return {
+    batch_result = {
         "results": results,
         "batch_id": batch_id,
         "processed": len(items),
         "succeeded": succeeded,
         "failed": failed,
     }
+
+    _GENERIC_BULK_CACHE["update"][idempotency_key] = batch_result
+
+    return batch_result
 
 
 # =============================================================================
@@ -265,6 +316,7 @@ def _fallback_create_todo_bulk(idempotency_key: str, items: List[Dict[str, Any]]
     results = []
     succeeded = failed = 0
 
+    client_map: Dict[str, Dict[str, str]] = {}
     for idx, itm in enumerate(items):
         try:
             title = itm.get("title")
@@ -273,22 +325,29 @@ def _fallback_create_todo_bulk(idempotency_key: str, items: List[Dict[str, Any]]
             deadline = itm.get("deadline")
             tags = itm.get("tags")
             list_name = itm.get("list_name")
-            
+
             res = create_todo(title, notes, when, deadline, tags, list_name)
             # Parse ID from success message: "✅ Created todo 'Title' (ID: ABC)"
             todo_id = res.split("ID:")[-1].strip(") ") if "ID:" in res else None
             results.append(_build_result(idx, todo_id=todo_id))
+            cid = itm.get("client_id")
+            if cid:
+                client_map[cid] = {"id": todo_id, "error": None}
             succeeded += 1
         except Exception as e:
             results.append(_build_result(idx, error=str(e)))
             failed += 1
-    return {
+    batch_result = {
         "results": results,
         "batch_id": batch_id,
         "processed": len(items),
         "succeeded": succeeded,
         "failed": failed,
     }
+
+    _CREATE_BULK_CACHE[idempotency_key] = {"batch": batch_result, "clients": client_map}
+
+    return batch_result
 
 
 def _fallback_complete_todo_bulk(idempotency_key: str, items: List[str]) -> Dict[str, Any]:
@@ -309,10 +368,14 @@ def _fallback_complete_todo_bulk(idempotency_key: str, items: List[str]) -> Dict
         except Exception as e:
             results.append(_build_result(idx, error=str(e)))
             failed += 1
-    return {
+    batch_result = {
         "results": results,
         "batch_id": batch_id,
         "processed": len(items),
         "succeeded": succeeded,
         "failed": failed,
     }
+
+    _GENERIC_BULK_CACHE["complete"][idempotency_key] = batch_result
+
+    return batch_result
