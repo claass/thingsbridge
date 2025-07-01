@@ -23,6 +23,7 @@ from .core_tools import (
     update_todo,
 )
 from .things3 import ThingsError, client
+from .cache import create_todo_bulk_cache
 from .utils import (
     _build_result,
     _format_applescript_date,
@@ -34,8 +35,8 @@ from .utils import (
 
 logger = logging.getLogger(__name__)
 
-# In-memory caches for idempotency
-_CREATE_BULK_CACHE: Dict[str, Dict[str, Dict[str, str]]] = {}
+# Persistent cache for create_todo_bulk idempotency
+_CREATE_BULK_CACHE = create_todo_bulk_cache
 _GENERIC_BULK_CACHE: Dict[str, Dict[str, Any]] = {
     "update": {},
     "move": {},
@@ -160,10 +161,7 @@ def create_todo_bulk(
         if cid:
             client_map[cid] = {"id": res.get("id"), "error": res.get("error")}
 
-    _CREATE_BULK_CACHE[idempotency_key] = {
-    "batch": batch_result,
-    "clients": client_map,
-    }
+    _CREATE_BULK_CACHE.set(idempotency_key, {"batch": batch_result, "clients": client_map})
 
     return batch_result
 
@@ -196,7 +194,7 @@ def complete_todo_bulk(idempotency_key: str, items: List[str]) -> Dict[str, Any]
     result = client.executor.execute(script)
 
     if not result.success:
-    raise ThingsError(f"Batch completion failed: {result.error}")
+        raise ThingsError(f"Batch completion failed: {result.error}")
 
     # Parse pipe-separated todo names from result
     todo_names = result.output.strip().split("|") if result.output.strip() else []
@@ -205,9 +203,9 @@ def complete_todo_bulk(idempotency_key: str, items: List[str]) -> Dict[str, Any]
     results = []
 
     for idx, todo_name in enumerate(todo_names):
-    if idx < len(items):
-        todo_id = items[idx]
-        if todo_name.strip():
+        if idx < len(items):
+            todo_id = items[idx]
+            if todo_name.strip():
                 results.append(_build_result(idx, todo_id=todo_id))
             else:
                 results.append(_build_result(idx, error="Failed to complete todo"))
@@ -237,17 +235,17 @@ def cancel_todo_bulk(idempotency_key: str, items: List[str]) -> Dict[str, Any]:
     """Cancel multiple todos in one batch."""
     cached = _GENERIC_BULK_CACHE["cancel"].get(idempotency_key)
     if cached:
-    return cached
+        return cached
 
     if not isinstance(items, list):
-    return {"error": "items must be list of todo IDs"}
+        return {"error": "items must be list of todo IDs"}
     validation_error = _validate_batch(items, idempotency_key)
     if validation_error:
-    return {"error": validation_error}
+        return {"error": validation_error}
 
     for idx, todo_id in enumerate(items):
-    if not todo_id or not isinstance(todo_id, str) or not todo_id.strip():
-        return {"error": f"Item {idx}: todo_id is required and cannot be empty"}
+        if not todo_id or not isinstance(todo_id, str) or not todo_id.strip():
+            return {"error": f"Item {idx}: todo_id is required and cannot be empty"}
 
     client.ensure_running()
 
@@ -294,17 +292,17 @@ def delete_todo_bulk(idempotency_key: str, items: List[str]) -> Dict[str, Any]:
     """Delete multiple todos in one batch."""
     cached = _GENERIC_BULK_CACHE["delete"].get(idempotency_key)
     if cached:
-    return cached
+        return cached
 
     if not isinstance(items, list):
-    return {"error": "items must be list of todo IDs"}
+        return {"error": "items must be list of todo IDs"}
     validation_error = _validate_batch(items, idempotency_key)
     if validation_error:
-    return {"error": validation_error}
+        return {"error": validation_error}
 
     for idx, todo_id in enumerate(items):
-    if not todo_id or not isinstance(todo_id, str) or not todo_id.strip():
-        return {"error": f"Item {idx}: todo_id is required and cannot be empty"}
+        if not todo_id or not isinstance(todo_id, str) or not todo_id.strip():
+            return {"error": f"Item {idx}: todo_id is required and cannot be empty"}
 
     client.ensure_running()
 
@@ -357,36 +355,36 @@ def move_todo_bulk(idempotency_key: str, items: List[Dict[str, Any]]) -> Dict[st
     """
     cached = _GENERIC_BULK_CACHE["move"].get(idempotency_key)
     if cached:
-    return cached
+        return cached
 
     validation_error = _validate_batch(items, idempotency_key)
     if validation_error:
-    return {"error": validation_error}
+        return {"error": validation_error}
 
     # Validate each item and format data for AppleScript
     processed_items = []
     for idx, itm in enumerate(items):
-    todo_id = itm.get("todo_id")
-    dest_type = itm.get("destination_type")
-    dest_name = itm.get("destination_name")
-    if not todo_id:
-        return {"error": f"Item {idx}: todo_id is required"}
-    if not dest_type or not dest_name:
-        return {
-            "error": (
-                f"Item {idx}: destination_type and destination_name are required"
-            )
-        }
-    dest_error = _validate_destination_type(dest_type)
-    if dest_error:
-        return {"error": f"Item {idx}: {dest_error}"}
-    processed_items.append(
-        {
-            "todo_id": todo_id,
-            "destination_type": dest_type,
-            "destination_name": dest_name,
-        }
-    )
+        todo_id = itm.get("todo_id")
+        dest_type = itm.get("destination_type")
+        dest_name = itm.get("destination_name")
+        if not todo_id:
+            return {"error": f"Item {idx}: todo_id is required"}
+        if not dest_type or not dest_name:
+            return {
+                "error": (
+                    f"Item {idx}: destination_type and destination_name are required"
+                )
+            }
+        dest_error = _validate_destination_type(dest_type)
+        if dest_error:
+            return {"error": f"Item {idx}: {dest_error}"}
+        processed_items.append(
+            {
+                "todo_id": todo_id,
+                "destination_type": dest_type,
+                "destination_name": dest_name,
+            }
+        )
 
     client.ensure_running()
 
@@ -441,28 +439,28 @@ def update_todo_bulk(
     """
     cached = _GENERIC_BULK_CACHE["update"].get(idempotency_key)
     if cached:
-    return cached
+        return cached
 
     validation_error = _validate_batch(items, idempotency_key)
     if validation_error:
-    return {"error": validation_error}
+        return {"error": validation_error}
 
     processed_items = []
     for idx, itm in enumerate(items):
-    todo_id = itm.get("todo_id")
-    if not todo_id:
-        return {"error": f"Item {idx}: todo_id is required"}
-    processed_item = {"todo_id": todo_id}
-    if "title" in itm and itm["title"]:
-        processed_item["title"] = itm["title"]
-    if "notes" in itm:
-        processed_item["notes"] = itm.get("notes")
-    if "deadline" in itm and itm["deadline"]:
-        date_error = _validate_date_format(itm["deadline"], "deadline")
-        if date_error:
-            return {"error": f"Item {idx}: {date_error}"}
-        processed_item["deadline"] = _format_applescript_date(itm["deadline"])
-    processed_items.append(processed_item)
+        todo_id = itm.get("todo_id")
+        if not todo_id:
+            return {"error": f"Item {idx}: todo_id is required"}
+        processed_item = {"todo_id": todo_id}
+        if "title" in itm and itm["title"]:
+            processed_item["title"] = itm["title"]
+        if "notes" in itm:
+            processed_item["notes"] = itm.get("notes")
+        if "deadline" in itm and itm["deadline"]:
+            date_error = _validate_date_format(itm["deadline"], "deadline")
+            if date_error:
+                return {"error": f"Item {idx}: {date_error}"}
+            processed_item["deadline"] = _format_applescript_date(itm["deadline"])
+        processed_items.append(processed_item)
 
     client.ensure_running()
 
@@ -572,7 +570,7 @@ def _fallback_create_todo_bulk(
         "failed": failed,
     }
 
-    _CREATE_BULK_CACHE[idempotency_key] = {"batch": batch_result, "clients": client_map}
+    _CREATE_BULK_CACHE.set(idempotency_key, {"batch": batch_result, "clients": client_map})
 
     return batch_result
 

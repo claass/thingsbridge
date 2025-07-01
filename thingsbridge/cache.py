@@ -1,13 +1,20 @@
 """Resource caching system with TTL for Things 3 integration."""
 
+import os
 import time
 import threading
+import shelve
+from pathlib import Path
 from typing import Any, Callable, Dict, Optional, TypeVar
 import logging
 
 logger = logging.getLogger(__name__)
 
 T = TypeVar('T')
+
+# Directory for persistent caches
+_CACHE_DIR = Path(os.environ.get("THINGSBRIDGE_CACHE_DIR", Path.home() / ".cache" / "thingsbridge"))
+_CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
 
 class TTLCache:
@@ -130,6 +137,45 @@ class TTLCache:
         return removed_count
 
 
+class ShelveCache:
+    """Thread-safe persistent cache backed by ``shelve``."""
+
+    def __init__(self, filename: str):
+        self.path = str(filename)
+        Path(self.path).parent.mkdir(parents=True, exist_ok=True)
+        self._lock = threading.Lock()
+        self._shelf = shelve.open(self.path, writeback=True)
+
+    def get(self, key: str, default: Any = None) -> Any:
+        """Retrieve a value from the persistent cache."""
+        with self._lock:
+            return self._shelf.get(key, default)
+
+    def set(self, key: str, value: Any) -> None:
+        """Store a value in the persistent cache."""
+        with self._lock:
+            self._shelf[key] = value
+            self._shelf.sync()
+
+    def clear(self) -> None:
+        """Clear all entries in the persistent cache."""
+        with self._lock:
+            self._shelf.clear()
+            self._shelf.sync()
+
+    def close(self) -> None:
+        """Close the underlying shelf."""
+        with self._lock:
+            if self._shelf is not None:
+                self._shelf.close()
+
+    def __del__(self) -> None:  # pragma: no cover - best effort cleanup
+        try:
+            self.close()
+        except Exception:
+            pass
+
+
 # Global cache instance for Things 3 resources
 _resource_cache = TTLCache(default_ttl_seconds=300)  # 5 minutes
 
@@ -180,3 +226,11 @@ def clear_resource_cache() -> None:
 def get_cache_stats() -> Dict[str, Any]:
     """Get resource cache statistics."""
     return _resource_cache.get_stats()
+
+
+# ---------------------------------------------------------------------------
+# Persistent cache instances
+# ---------------------------------------------------------------------------
+
+# Persistent cache for create_todo_bulk idempotency
+create_todo_bulk_cache = ShelveCache(_CACHE_DIR / "create_todo_bulk.db")
