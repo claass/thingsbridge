@@ -4,7 +4,11 @@ import logging
 from datetime import date, timedelta
 from typing import Any, Dict, List, Optional
 
-from .applescript_builder import build_search_script, build_list_script
+from .applescript_builder import (
+    build_search_script,
+    build_list_script,
+    build_tags_list_script,
+)
 from .cache import cached_resource
 from .resources import areas_list, projects_list
 from .things3 import ThingsError, client
@@ -227,34 +231,7 @@ def _fetch_tags_uncached() -> str:
     """Fetch tags from Things 3 without caching."""
     client.ensure_running()
 
-    script = '''
-    tell application "Things3"
-        set allTags to tags
-        set tagCount to count of allTags
-        set resultText to "Available Tags (" & tagCount & " tags):\\n\\n"
-        
-        repeat with i from 1 to tagCount
-            set currentTag to item i of allTags
-            set tagName to name of currentTag
-            set tagId to id of currentTag
-            
-            set resultText to resultText & "• " & tagName & " (ID: " & tagId & ")"
-            
-            -- Check for parent tag
-            try
-                set parentTag to parent tag of currentTag
-                if parentTag is not missing value then
-                    set parentName to name of parentTag
-                    set resultText to resultText & " [Parent: " & parentName & "]"
-                end if
-            end try
-            
-            set resultText to resultText & "\\n"
-        end repeat
-        
-        return resultText
-    end tell
-    '''
+    script = build_tags_list_script()
 
     result = client.executor.execute(script)
 
