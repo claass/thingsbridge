@@ -26,6 +26,7 @@ logger = logging.getLogger(__name__)
 _CREATE_TODO_CACHE: Dict[str, str] = {}
 
 
+@_handle_tool_errors("create todo")
 def create_todo(
     title: str,
     notes: str = "",
@@ -55,81 +56,77 @@ def create_todo(
 
     See also: create_todo_bulk
     """
-    try:
-        # Ensure Things 3 is running
-        if client_id and client_id in _CREATE_TODO_CACHE:
-            cached_id = _CREATE_TODO_CACHE[client_id]
-            tag_info = f" with tags: {', '.join(tags)}" if tags else ""
-            return f"✅ Created todo '{title}'{tag_info} with ID: {cached_id}"
-
-        client.ensure_running()
-
-        # Escape quotes in strings
-        safe_title = title.replace('"', '\\"')
-        safe_notes = notes.replace('"', '\\"') if notes else ""
-
-        # Build the AppleScript
-        properties = [f'name:"{safe_title}"']
-
-        if safe_notes:
-            properties.append(f'notes:"{safe_notes}"')
-
-        # Note: We'll handle scheduling after creation using the 'schedule' command
-        # For someday, we'll create in the Someday list instead of scheduling
-        someday_list = None
-        if when and when.lower() == "someday":
-            someday_list = "Someday"
-
-        # Handle due date (deadline when task must be completed)
-        if deadline:
-            try:
-                properties.append(
-                    f'due date:(date "{_format_applescript_date(deadline)}")'
-                )
-            except ValueError:
-                logger.warning(f"Invalid date format for deadline: {deadline}")
-
-        # Note: We'll handle tags after creation due to AppleScript limitations
-
-        properties_str = ", ".join(properties)
-
-        # Build script with optional list assignment
-        target_list = list_name or someday_list
-        script = build_todo_creation_script(properties, target_list)
-
-        result = client.executor.execute(script)
-
-        if not result.success:
-            raise ThingsError(f"Failed to create todo: {result.error}")
-
-        todo_id = result.output
-
-        # Handle scheduling after creation using the 'schedule' command
-        if when and when.lower() != "someday":
-            _schedule_item(todo_id, when, "to do")
-
-        # Add tags after creation if specified
-        if tags:
-            try:
-                for tag in tags:
-                    safe_tag = tag.replace('"', '\\"')
-                    tag_script = build_tag_addition_script(todo_id, safe_tag)
-                    tag_result = client.executor.execute(tag_script)
-                    if not tag_result.success:
-                        logger.warning(f"Failed to add tag '{tag}': {tag_result.error}")
-            except Exception as e:
-                logger.warning(f"Error adding tags: {e}")
-
+    # Ensure Things 3 is running
+    if client_id and client_id in _CREATE_TODO_CACHE:
+        cached_id = _CREATE_TODO_CACHE[client_id]
         tag_info = f" with tags: {', '.join(tags)}" if tags else ""
-        if client_id:
-            _CREATE_TODO_CACHE[client_id] = todo_id
-        return f"✅ Created todo '{title}'{tag_info} with ID: {todo_id}"
+        return f"✅ Created todo '{title}'{tag_info} with ID: {cached_id}"
 
-    except Exception as e:
-        logger.error(f"Error creating todo: {e}")
-        return f"❌ Failed to create todo: {str(e)}"
+    client.ensure_running()
+
+    # Escape quotes in strings
+    safe_title = title.replace('"', '\\"')
+    safe_notes = notes.replace('"', '\\"') if notes else ""
+
+    # Build the AppleScript
+    properties = [f'name:"{safe_title}"']
+
+    if safe_notes:
+        properties.append(f'notes:"{safe_notes}"')
+
+    # Note: We'll handle scheduling after creation using the 'schedule' command
+    # For someday, we'll create in the Someday list instead of scheduling
+    someday_list = None
+    if when and when.lower() == "someday":
+        someday_list = "Someday"
+
+    # Handle due date (deadline when task must be completed)
+    if deadline:
+        try:
+            properties.append(
+                f'due date:(date "{_format_applescript_date(deadline)}")'
+            )
+        except ValueError:
+            logger.warning(f"Invalid date format for deadline: {deadline}")
+
+    # Note: We'll handle tags after creation due to AppleScript limitations
+
+    properties_str = ", ".join(properties)
+
+    # Build script with optional list assignment
+    target_list = list_name or someday_list
+    script = build_todo_creation_script(properties, target_list)
+
+    result = client.executor.execute(script)
+
+    if not result.success:
+        raise ThingsError(f"Failed to create todo: {result.error}")
+
+    todo_id = result.output
+
+    # Handle scheduling after creation using the 'schedule' command
+    if when and when.lower() != "someday":
+        _schedule_item(todo_id, when, "to do")
+
+    # Add tags after creation if specified
+    if tags:
+        try:
+            for tag in tags:
+                safe_tag = tag.replace('"', '\\"')
+                tag_script = build_tag_addition_script(todo_id, safe_tag)
+                tag_result = client.executor.execute(tag_script)
+                if not tag_result.success:
+                    logger.warning(f"Failed to add tag '{tag}': {tag_result.error}")
+        except Exception as e:
+            logger.warning(f"Error adding tags: {e}")
+
+    tag_info = f" with tags: {', '.join(tags)}" if tags else ""
+    if client_id:
+        _CREATE_TODO_CACHE[client_id] = todo_id
+    return f"✅ Created todo '{title}'{tag_info} with ID: {todo_id}"
 
 
+@_handle_tool_errors("create project")
 def create_project(
     title: str,
     notes: str = "",
@@ -153,61 +150,57 @@ def create_project(
     Returns:
         Success message with project ID
     """
-    try:
-        client.ensure_running()
+    client.ensure_running()
 
-        safe_title = title.replace('"', '\\"')
-        safe_notes = notes.replace('"', '\\"') if notes else ""
+    safe_title = title.replace('"', '\\"')
+    safe_notes = notes.replace('"', '\\"') if notes else ""
 
-        properties = [f'name:"{safe_title}"']
+    properties = [f'name:"{safe_title}"']
 
-        if safe_notes:
-            properties.append(f'notes:"{safe_notes}"')
+    if safe_notes:
+        properties.append(f'notes:"{safe_notes}"')
 
-        # Note: We'll handle scheduling after creation using the 'schedule' command
+    # Note: We'll handle scheduling after creation using the 'schedule' command
 
-        if deadline:
-            try:
-                properties.append(
-                    f'due date:(date "{_format_applescript_date(deadline)}")'
-                )
-            except ValueError:
-                logger.warning(f"Invalid date format for deadline: {deadline}")
+    if deadline:
+        try:
+            properties.append(
+                f'due date:(date "{_format_applescript_date(deadline)}")'
+            )
+        except ValueError:
+            logger.warning(f"Invalid date format for deadline: {deadline}")
 
-        if tags:
-            escaped_tags = [tag.replace('"', '\\"') for tag in tags]
-            tag_list = "{" + ", ".join([f'"{tag}"' for tag in escaped_tags]) + "}"
-            properties.append(f"tag names:{tag_list}")
+    if tags:
+        escaped_tags = [tag.replace('"', '\\"') for tag in tags]
+        tag_list = "{" + ", ".join([f'"{tag}"' for tag in escaped_tags]) + "}"
+        properties.append(f"tag names:{tag_list}")
 
-        if area:
-            safe_area = area.replace('"', '\\"')
-            properties.append(f'area:area "{safe_area}"')
+    if area:
+        safe_area = area.replace('"', '\\"')
+        properties.append(f'area:area "{safe_area}"')
 
-        properties_str = ", ".join(properties)
+    properties_str = ", ".join(properties)
 
-        script = build_project_creation_script(properties)
+    script = build_project_creation_script(properties)
 
-        result = client.executor.execute(script)
+    result = client.executor.execute(script)
 
-        if not result.success:
-            raise ThingsError(f"Failed to create project: {result.error}")
+    if not result.success:
+        raise ThingsError(f"Failed to create project: {result.error}")
 
-        project_id = result.output
+    project_id = result.output
 
-        # Handle scheduling after creation using the 'schedule' command
-        if when and when.lower() != "someday":
-            _schedule_item(project_id, when, "project")
+    # Handle scheduling after creation using the 'schedule' command
+    if when and when.lower() != "someday":
+        _schedule_item(project_id, when, "project")
 
-        # Invalidate projects cache since we added a new project
-        invalidate_resource_cache("projects_list")
+    # Invalidate projects cache since we added a new project
+    invalidate_resource_cache("projects_list")
 
-        return f"📁 Created project '{title}' with ID: {project_id}"
-
-    except Exception as e:
-        logger.error(f"Error creating project: {e}")
-        return f"❌ Failed to create project: {str(e)}"
+    return f"📁 Created project '{title}' with ID: {project_id}"
 
 
+@_handle_tool_errors("update todo")
 def update_todo(
     todo_id: str,
     title: Optional[str] = None,
@@ -241,84 +234,80 @@ def update_todo(
 
     See also: update_todo_bulk
     """
-    try:
-        client.ensure_running()
+    client.ensure_running()
 
-        safe_id = todo_id.replace('"', '\\"')
-        updates = []
+    safe_id = todo_id.replace('"', '\\"')
+    updates = []
 
-        if title:
-            safe_title = title.replace('"', '\\"')
-            updates.append(f'set name of targetToDo to "{safe_title}"')
+    if title:
+        safe_title = title.replace('"', '\\"')
+        updates.append(f'set name of targetToDo to "{safe_title}"')
 
-        if notes is not None:  # Allow empty string to clear notes
-            safe_notes = notes.replace('"', '\\"').replace("!", "\\!")
-            updates.append(f'set notes of targetToDo to "{safe_notes}"')
+    if notes is not None:  # Allow empty string to clear notes
+        safe_notes = notes.replace('"', '\\"').replace("!", "\\!")
+        updates.append(f'set notes of targetToDo to "{safe_notes}"')
 
-        # Note: We'll handle scheduling separately using the 'schedule' command
-        schedule_when = None
-        move_to_someday = False
-        if when:
-            when_lower = when.lower()
-            if when_lower == "someday":
-                # For someday, we'll move to Someday list after update
-                move_to_someday = True
-            else:
-                schedule_when = when  # Save for scheduling after update
-
-        if deadline:
-            try:
-                updates.append(
-                    f'set due date of targetToDo to (date "{_format_applescript_date(deadline)}")'
-                )
-            except ValueError:
-                logger.warning(f"Invalid date format for deadline: {deadline}")
-
-        if not updates and not schedule_when and not move_to_someday:
-            return "❌ No updates specified"
-
-        # Execute updates if there are any
-        todo_name = None
-        if updates:
-            updates_str = "\n            ".join(updates)
-
-            script = build_todo_update_script(safe_id, updates)
-
-            result = client.executor.execute(script)
-
-            if not result.success:
-                raise ThingsError(f"Failed to update todo: {result.error}")
-
-            todo_name = result.output
+    # Note: We'll handle scheduling separately using the 'schedule' command
+    schedule_when = None
+    move_to_someday = False
+    if when:
+        when_lower = when.lower()
+        if when_lower == "someday":
+            # For someday, we'll move to Someday list after update
+            move_to_someday = True
         else:
-            # If no property updates, just get the name for the response
-            script = build_get_name_script(safe_id)
-            result = client.executor.execute(script)
-            if not result.success:
-                raise ThingsError(f"Failed to get todo name: {result.error}")
-            todo_name = result.output
+            schedule_when = when  # Save for scheduling after update
 
-        # Handle scheduling after update using the 'schedule' command
-        if schedule_when:
-            _schedule_item(safe_id, schedule_when, "to do")
+    if deadline:
+        try:
+            updates.append(
+                f'set due date of targetToDo to (date "{_format_applescript_date(deadline)}")'
+            )
+        except ValueError:
+            logger.warning(f"Invalid date format for deadline: {deadline}")
 
-        # Handle moving to Someday list
-        if move_to_someday:
-            try:
-                move_script = build_move_to_list_script(safe_id, "Someday")
-                move_result = client.executor.execute(move_script)
-                if not move_result.success:
-                    logger.warning(f"Failed to move todo to Someday: {move_result.error}")
-            except Exception as e:
-                logger.warning(f"Error moving todo to Someday: {e}")
+    if not updates and not schedule_when and not move_to_someday:
+        return "❌ No updates specified"
 
-        return f"✏️ Updated todo: {todo_name}"
+    # Execute updates if there are any
+    todo_name = None
+    if updates:
+        updates_str = "\n            ".join(updates)
 
-    except Exception as e:
-        logger.error(f"Error updating todo: {e}")
-        return f"❌ Failed to update todo: {str(e)}"
+        script = build_todo_update_script(safe_id, updates)
+
+        result = client.executor.execute(script)
+
+        if not result.success:
+            raise ThingsError(f"Failed to update todo: {result.error}")
+
+        todo_name = result.output
+    else:
+        # If no property updates, just get the name for the response
+        script = build_get_name_script(safe_id)
+        result = client.executor.execute(script)
+        if not result.success:
+            raise ThingsError(f"Failed to get todo name: {result.error}")
+        todo_name = result.output
+
+    # Handle scheduling after update using the 'schedule' command
+    if schedule_when:
+        _schedule_item(safe_id, schedule_when, "to do")
+
+    # Handle moving to Someday list
+    if move_to_someday:
+        try:
+            move_script = build_move_to_list_script(safe_id, "Someday")
+            move_result = client.executor.execute(move_script)
+            if not move_result.success:
+                logger.warning(f"Failed to move todo to Someday: {move_result.error}")
+        except Exception as e:
+            logger.warning(f"Error moving todo to Someday: {e}")
+
+    return f"✏️ Updated todo: {todo_name}"
 
 
+@_handle_tool_errors("move todo")
 def move_todo(todo_id: str, destination_type: str, destination_name: str) -> str:
     """
     Move a todo to a different area, project, or list in Things 3.
@@ -333,30 +322,26 @@ def move_todo(todo_id: str, destination_type: str, destination_name: str) -> str
 
     See also: move_todo_bulk
     """
-    try:
-        client.ensure_running()
+    client.ensure_running()
 
-        safe_id = todo_id.replace('"', '\\"')
-        safe_destination = destination_name.replace('"', '\\"')
+    safe_id = todo_id.replace('"', '\\"')
+    safe_destination = destination_name.replace('"', '\\"')
 
-        # Build AppleScript based on destination type
-        script = build_move_script(safe_id, destination_type, safe_destination)
-        if script.startswith("❌"):
-            return script
+    # Build AppleScript based on destination type
+    script = build_move_script(safe_id, destination_type, safe_destination)
+    if script.startswith("❌"):
+        return script
 
-        result = client.executor.execute(script)
+    result = client.executor.execute(script)
 
-        if not result.success:
-            raise ThingsError(f"Failed to move todo: {result.error}")
+    if not result.success:
+        raise ThingsError(f"Failed to move todo: {result.error}")
 
-        todo_name = result.output
-        return f"📁 Moved todo '{todo_name}' to {destination_type} '{destination_name}'"
-
-    except Exception as e:
-        logger.error(f"Error moving todo: {e}")
-        return f"❌ Failed to move todo: {str(e)}"
+    todo_name = result.output
+    return f"📁 Moved todo '{todo_name}' to {destination_type} '{destination_name}'"
 
 
+@_handle_tool_errors("complete todo")
 def complete_todo(todo_id: str) -> str:
     """
     Mark a todo as completed.
@@ -369,30 +354,26 @@ def complete_todo(todo_id: str) -> str:
 
     See also: complete_todo_bulk
     """
-    try:
-        # Validate required parameters
-        if not todo_id or not isinstance(todo_id, str) or not todo_id.strip():
-            return "❌ todo_id is required and cannot be empty"
+    # Validate required parameters
+    if not todo_id or not isinstance(todo_id, str) or not todo_id.strip():
+        return "❌ todo_id is required and cannot be empty"
         
-        client.ensure_running()
+    client.ensure_running()
 
-        safe_id = todo_id.replace('"', '\\"')
+    safe_id = todo_id.replace('"', '\\"')
 
-        script = build_completion_script(safe_id)
+    script = build_completion_script(safe_id)
 
-        result = client.executor.execute(script)
+    result = client.executor.execute(script)
 
-        if not result.success:
-            raise ThingsError(f"Failed to complete todo: {result.error}")
+    if not result.success:
+        raise ThingsError(f"Failed to complete todo: {result.error}")
 
-        todo_name = result.output
-        return f"✅ Completed todo: {todo_name}"
-        
-    except Exception as e:
-        logger.error(f"Error completing todo: {e}")
-        return f"❌ Failed to complete todo: {str(e)}"
+    todo_name = result.output
+    return f"✅ Completed todo: {todo_name}"
 
 
+@_handle_tool_errors("cancel todo")
 def cancel_todo(todo_id: str) -> str:
     """
     Mark a todo as canceled (distinct from completed).
@@ -406,198 +387,179 @@ def cancel_todo(todo_id: str) -> str:
     Raises:
         ThingsError: If the cancel operation fails
     """
-    try:
-        if not todo_id or not isinstance(todo_id, str) or not todo_id.strip():
-            return "❌ todo_id is required and cannot be empty"
+    if not todo_id or not isinstance(todo_id, str) or not todo_id.strip():
+        return "❌ todo_id is required and cannot be empty"
 
-        client.ensure_running()
+    client.ensure_running()
 
-        safe_id = todo_id.replace('"', '\\"')
-        script = build_cancellation_script(safe_id)
-        result = client.executor.execute(script)
+    safe_id = todo_id.replace('"', '\\"')
+    script = build_cancellation_script(safe_id)
+    result = client.executor.execute(script)
 
-        if not result.success:
-            raise ThingsError(f"Failed to cancel todo: {result.error}")
+    if not result.success:
+        raise ThingsError(f"Failed to cancel todo: {result.error}")
 
-        todo_name = result.output
-        return f"🚫 Canceled todo: {todo_name}"
-    except Exception as e:
-        logger.error(f"Error canceling todo: {e}")
-        return f"❌ Failed to cancel todo: {str(e)}"
+    todo_name = result.output
+    return f"🚫 Canceled todo: {todo_name}"
 
 
+@_handle_tool_errors("cancel project")
 def cancel_project(project_id: str) -> str:
     """
     Mark a project as canceled (distinct from completed).
 
     Args:
-        project_id: The ID of the project to cancel
+    project_id: The ID of the project to cancel
 
     Returns:
-        Success message
+    Success message
     """
-    try:
-        # Validate required parameters
-        if not project_id or not isinstance(project_id, str) or not project_id.strip():
-            return "❌ project_id is required and cannot be empty"
-        
-        client.ensure_running()
+    # Validate required parameters
+    if not project_id or not isinstance(project_id, str) or not project_id.strip():
+        return "❌ project_id is required and cannot be empty"
+    
+    client.ensure_running()
 
-        safe_id = project_id.replace('"', '\\"')
+    safe_id = project_id.replace('"', '\\"')
 
-        script = f"""
-        tell application "Things3"
-            set targetProject to project id "{safe_id}"
-            set status of targetProject to canceled
-            return name of targetProject
-        end tell
-        """
+    script = f"""
+    tell application "Things3"
+        set targetProject to project id "{safe_id}"
+        set status of targetProject to canceled
+        return name of targetProject
+    end tell
+    """
 
-        result = client.executor.execute(script)
+    result = client.executor.execute(script)
 
-        if not result.success:
-            raise ThingsError(f"Failed to cancel project: {result.error}")
+    if not result.success:
+        raise ThingsError(f"Failed to cancel project: {result.error}")
 
-        project_name = result.output
-        return f"❌ Canceled project: {project_name}"
-        
-    except Exception as e:
-        logger.error(f"Error canceling project: {e}")
-        return f"❌ Failed to cancel project: {str(e)}"
+    project_name = result.output
+    return f"❌ Canceled project: {project_name}"
 
 
+@_handle_tool_errors("create tag")
 def create_tag(name: str, parent_tag: Optional[str] = None) -> str:
     """
     Create a new tag in Things 3.
 
     Args:
-        name: The tag name (required)
-        parent_tag: Optional parent tag name to create a hierarchical relationship
+    name: The tag name (required)
+    parent_tag: Optional parent tag name to create a hierarchical relationship
 
     Returns:
-        Success message with tag details
+    Success message with tag details
     """
-    try:
-        # Validate required parameters
-        if not name or not isinstance(name, str) or not name.strip():
-            return "❌ tag name is required and cannot be empty"
-        
-        client.ensure_running()
+    # Validate required parameters
+    if not name or not isinstance(name, str) or not name.strip():
+        return "❌ tag name is required and cannot be empty"
+    
+    client.ensure_running()
 
-        safe_name = name.replace('"', '\\"')
+    safe_name = name.replace('"', '\\"')
 
-        script = f'''
-        tell application "Things3"
-            set newTag to make new tag with properties {{name:"{safe_name}"}}
-            set tagId to id of newTag
-            '''
-
-        # Add parent tag relationship if specified
-        if parent_tag:
-            safe_parent = parent_tag.replace('"', '\\"')
-            script += f'''
-            try
-                set parentTagObj to tag "{safe_parent}"
-                set parent tag of newTag to parentTagObj
-            end try
-            '''
-
-        script += '''
-            return name of newTag & " (ID: " & tagId & ")"
-        end tell
+    script = f'''
+    tell application "Things3"
+        set newTag to make new tag with properties {{name:"{safe_name}"}}
+        set tagId to id of newTag
         '''
 
-        result = client.executor.execute(script)
+    # Add parent tag relationship if specified
+    if parent_tag:
+        safe_parent = parent_tag.replace('"', '\\"')
+        script += f'''
+        try
+            set parentTagObj to tag "{safe_parent}"
+            set parent tag of newTag to parentTagObj
+        end try
+        '''
 
-        if not result.success:
-            raise ThingsError(f"Failed to create tag: {result.error}")
+    script += '''
+        return name of newTag & " (ID: " & tagId & ")"
+    end tell
+    '''
 
-        tag_info = result.output
-        parent_info = f" under parent '{parent_tag}'" if parent_tag else ""
-        
-        # Invalidate tags cache since we added a new tag
-        invalidate_resource_cache("list_tags")
-        
-        return f"🏷️ Created tag: {tag_info}{parent_info}"
-        
-    except Exception as e:
-        logger.error(f"Error creating tag: {e}")
-        return f"❌ Failed to create tag: {str(e)}"
+    result = client.executor.execute(script)
+
+    if not result.success:
+        raise ThingsError(f"Failed to create tag: {result.error}")
+
+    tag_info = result.output
+    parent_info = f" under parent '{parent_tag}'" if parent_tag else ""
+    
+    # Invalidate tags cache since we added a new tag
+    invalidate_resource_cache("list_tags")
+    
+    return f"🏷️ Created tag: {tag_info}{parent_info}"
 
 
+@_handle_tool_errors("delete todo")
 def delete_todo(todo_id: str) -> str:
     """
     Delete a todo (move it to Trash).
 
     Args:
-        todo_id: The ID of the todo to delete
+    todo_id: The ID of the todo to delete
 
     Returns:
-        Success message with todo name
+    Success message with todo name
 
     Raises:
-        ThingsError: If the delete operation fails
+    ThingsError: If the delete operation fails
     """
-    try:
-        if not todo_id or not isinstance(todo_id, str) or not todo_id.strip():
-            return "❌ todo_id is required and cannot be empty"
+    if not todo_id or not isinstance(todo_id, str) or not todo_id.strip():
+        return "❌ todo_id is required and cannot be empty"
 
-        client.ensure_running()
+    client.ensure_running()
 
-        safe_id = todo_id.replace('"', '\\"')
-        script = build_delete_script(safe_id)
-        result = client.executor.execute(script)
+    safe_id = todo_id.replace('"', '\\"')
+    script = build_delete_script(safe_id)
+    result = client.executor.execute(script)
 
-        if not result.success:
-            raise ThingsError(f"Failed to delete todo: {result.error}")
+    if not result.success:
+        raise ThingsError(f"Failed to delete todo: {result.error}")
 
-        todo_name = result.output
-        return f"🗑️ Deleted todo: {todo_name}"
-    except Exception as e:
-        logger.error(f"Error deleting todo: {e}")
-        return f"❌ Failed to delete todo: {str(e)}"
+    todo_name = result.output
+    return f"🗑️ Deleted todo: {todo_name}"
 
 
+@_handle_tool_errors("delete project")
 def delete_project(project_id: str) -> str:
     """
     Delete a project (move it to Trash).
 
     Args:
-        project_id: The ID of the project to delete
+    project_id: The ID of the project to delete
 
     Returns:
-        Success message
+    Success message
     """
-    try:
-        # Validate required parameters
-        if not project_id or not isinstance(project_id, str) or not project_id.strip():
-            return "❌ project_id is required and cannot be empty"
-        
-        client.ensure_running()
+    # Validate required parameters
+    if not project_id or not isinstance(project_id, str) or not project_id.strip():
+        return "❌ project_id is required and cannot be empty"
+    
+    client.ensure_running()
 
-        safe_id = project_id.replace('"', '\\"')
+    safe_id = project_id.replace('"', '\\"')
 
-        script = f"""
-        tell application "Things3"
-            set targetProject to project id "{safe_id}"
-            set projectName to name of targetProject
-            move targetProject to list "Trash"
-            return projectName
-        end tell
-        """
+    script = f"""
+    tell application "Things3"
+        set targetProject to project id "{safe_id}"
+        set projectName to name of targetProject
+        move targetProject to list "Trash"
+        return projectName
+    end tell
+    """
 
-        result = client.executor.execute(script)
+    result = client.executor.execute(script)
 
-        if not result.success:
-            raise ThingsError(f"Failed to delete project: {result.error}")
+    if not result.success:
+        raise ThingsError(f"Failed to delete project: {result.error}")
 
-        project_name = result.output
-        
-        # Invalidate projects cache since we deleted a project
-        invalidate_resource_cache("projects_list")
-        
-        return f"🗑️ Deleted project: {project_name}"
-        
-    except Exception as e:
-        logger.error(f"Error deleting project: {e}")
-        return f"❌ Failed to delete project: {str(e)}"
+    project_name = result.output
+    
+    # Invalidate projects cache since we deleted a project
+    invalidate_resource_cache("projects_list")
+    
+    return f"🗑️ Deleted project: {project_name}"

@@ -29,6 +29,7 @@ from .utils import (
     _validate_batch,
     _validate_date_format,
     _validate_destination_type,
+    _handle_tool_errors,
 )
 
 logger = logging.getLogger(__name__)
@@ -44,6 +45,7 @@ _GENERIC_BULK_CACHE: Dict[str, Dict[str, Any]] = {
 }
 
 
+@_handle_tool_errors("create todo bulk")
 def create_todo_bulk(
     idempotency_key: str, items: List[Dict[str, Any]]
 ) -> Dict[str, Any]:
@@ -86,92 +88,87 @@ def create_todo_bulk(
 
         processed_items.append(processed_item)
 
-    try:
-        client.ensure_running()
+    client.ensure_running()
 
-        # Use native batch AppleScript for significantly better performance
-        script = build_batch_todo_creation_script(processed_items)
-        result = client.executor.execute(script)
+    # Use native batch AppleScript for significantly better performance
+    script = build_batch_todo_creation_script(processed_items)
+    result = client.executor.execute(script)
 
-        if not result.success:
-            raise ThingsError(f"Batch creation failed: {result.error}")
+    if not result.success:
+        raise ThingsError(f"Batch creation failed: {result.error}")
 
-        # Parse comma-separated todo IDs from result
-        todo_ids = result.output.strip().split(",") if result.output.strip() else []
+    # Parse comma-separated todo IDs from result
+    todo_ids = result.output.strip().split(",") if result.output.strip() else []
 
-        batch_id = uuid.uuid4().hex
-        results = []
+    batch_id = uuid.uuid4().hex
+    results = []
 
-        for idx, todo_id in enumerate(todo_ids):
-            if todo_id.strip():
-                results.append(_build_result(idx, todo_id=todo_id.strip()))
-            else:
-                results.append(_build_result(idx, error="Failed to create todo"))
+    for idx, todo_id in enumerate(todo_ids):
+        if todo_id.strip():
+            results.append(_build_result(idx, todo_id=todo_id.strip()))
+        else:
+            results.append(_build_result(idx, error="Failed to create todo"))
 
-        # Handle scheduling for items that need it (non-someday items)
-        for idx, item in enumerate(processed_items):
-            when = item.get("when")
-            if when and when.lower() != "someday" and idx < len(todo_ids):
-                todo_id = todo_ids[idx].strip()
-                if todo_id:
+    # Handle scheduling for items that need it (non-someday items)
+    for idx, item in enumerate(processed_items):
+        when = item.get("when")
+        if when and when.lower() != "someday" and idx < len(todo_ids):
+            todo_id = todo_ids[idx].strip()
+            if todo_id:
+                try:
+                    from .utils import _schedule_item
+
+                    _schedule_item(todo_id, when, "to do")
+                except Exception as e:
+                    logger.warning(f"Failed to schedule todo {todo_id}: {e}")
+
+    # Apply tags after creation if provided
+    for idx, item in enumerate(processed_items):
+        tags = item.get("tags")
+        if tags and idx < len(todo_ids):
+            todo_id = todo_ids[idx].strip()
+            if todo_id:
+                for tag in tags:
+                    safe_tag = tag.replace('"', '\\"')
                     try:
-                        from .utils import _schedule_item
-
-                        _schedule_item(todo_id, when, "to do")
-                    except Exception as e:
-                        logger.warning(f"Failed to schedule todo {todo_id}: {e}")
-
-        # Apply tags after creation if provided
-        for idx, item in enumerate(processed_items):
-            tags = item.get("tags")
-            if tags and idx < len(todo_ids):
-                todo_id = todo_ids[idx].strip()
-                if todo_id:
-                    for tag in tags:
-                        safe_tag = tag.replace('"', '\\"')
-                        try:
-                            tag_script = build_tag_addition_script(todo_id, safe_tag)
-                            tag_result = client.executor.execute(tag_script)
-                            if not tag_result.success:
-                                logger.warning(
-                                    f"Failed to add tag '{tag}' to {todo_id}: {tag_result.error}"
-                                )
-                        except Exception as e:
+                        tag_script = build_tag_addition_script(todo_id, safe_tag)
+                        tag_result = client.executor.execute(tag_script)
+                        if not tag_result.success:
                             logger.warning(
-                                f"Error adding tag '{tag}' to {todo_id}: {e}"
+                                f"Failed to add tag '{tag}' to {todo_id}: {tag_result.error}"
                             )
+                    except Exception as e:
+                        logger.warning(
+                            f"Error adding tag '{tag}' to {todo_id}: {e}"
+                        )
 
-        succeeded = len([r for r in results if "error" not in r])
-        failed = len(results) - succeeded
+    succeeded = len([r for r in results if "error" not in r])
+    failed = len(results) - succeeded
 
-        batch_result = {
-            "results": results,
-            "batch_id": batch_id,
-            "processed": len(items),
-            "succeeded": succeeded,
-            "failed": failed,
-        }
+    batch_result = {
+        "results": results,
+        "batch_id": batch_id,
+        "processed": len(items),
+        "succeeded": succeeded,
+        "failed": failed,
+    }
 
-        # Store results in idempotency cache
-        client_map: Dict[str, Dict[str, str]] = {}
-        for itm, res in zip(items, results):
-            cid = itm.get("client_id")
-            if cid:
-                client_map[cid] = {"id": res.get("id"), "error": res.get("error")}
+    # Store results in idempotency cache
+    client_map: Dict[str, Dict[str, str]] = {}
+    for itm, res in zip(items, results):
+        cid = itm.get("client_id")
+        if cid:
+            client_map[cid] = {"id": res.get("id"), "error": res.get("error")}
 
-        _CREATE_BULK_CACHE[idempotency_key] = {
-            "batch": batch_result,
-            "clients": client_map,
-        }
+    _CREATE_BULK_CACHE[idempotency_key] = {
+    "batch": batch_result,
+    "clients": client_map,
+    }
 
-        return batch_result
-
-    except Exception as e:
-        logger.error(f"Bulk create operation failed: {e}")
-        # Fallback to individual operations if batch fails
-        return _fallback_create_todo_bulk(idempotency_key, items)
+    return batch_result
 
 
+@_handle_tool_errors("complete todo bulk")
 def complete_todo_bulk(idempotency_key: str, items: List[str]) -> Dict[str, Any]:
     """Complete multiple todos in one batch using native AppleScript batch processing.
 
@@ -192,367 +189,345 @@ def complete_todo_bulk(idempotency_key: str, items: List[str]) -> Dict[str, Any]
         if not todo_id or not isinstance(todo_id, str) or not todo_id.strip():
             return {"error": f"Item {idx}: todo_id is required and cannot be empty"}
 
-    try:
-        client.ensure_running()
+    client.ensure_running()
 
-        # Use native batch AppleScript for significantly better performance
-        script = build_batch_completion_script(items)
-        result = client.executor.execute(script)
+    # Use native batch AppleScript for significantly better performance
+    script = build_batch_completion_script(items)
+    result = client.executor.execute(script)
 
-        if not result.success:
-            raise ThingsError(f"Batch completion failed: {result.error}")
+    if not result.success:
+    raise ThingsError(f"Batch completion failed: {result.error}")
 
-        # Parse pipe-separated todo names from result
-        todo_names = result.output.strip().split("|") if result.output.strip() else []
+    # Parse pipe-separated todo names from result
+    todo_names = result.output.strip().split("|") if result.output.strip() else []
 
-        batch_id = uuid.uuid4().hex
-        results = []
+    batch_id = uuid.uuid4().hex
+    results = []
 
-        for idx, todo_name in enumerate(todo_names):
-            if idx < len(items):
-                todo_id = items[idx]
-                if todo_name.strip():
-                    results.append(_build_result(idx, todo_id=todo_id))
-                else:
-                    results.append(_build_result(idx, error="Failed to complete todo"))
+    for idx, todo_name in enumerate(todo_names):
+    if idx < len(items):
+        todo_id = items[idx]
+        if todo_name.strip():
+                results.append(_build_result(idx, todo_id=todo_id))
+            else:
+                results.append(_build_result(idx, error="Failed to complete todo"))
 
-        # Handle case where we have fewer results than items
-        while len(results) < len(items):
-            results.append(_build_result(len(results), error="Failed to complete todo"))
+    # Handle case where we have fewer results than items
+    while len(results) < len(items):
+        results.append(_build_result(len(results), error="Failed to complete todo"))
 
-        succeeded = len([r for r in results if "error" not in r])
-        failed = len(results) - succeeded
+    succeeded = len([r for r in results if "error" not in r])
+    failed = len(results) - succeeded
 
-        batch_result = {
-            "results": results,
-            "batch_id": batch_id,
-            "processed": len(items),
-            "succeeded": succeeded,
-            "failed": failed,
-        }
+    batch_result = {
+        "results": results,
+        "batch_id": batch_id,
+        "processed": len(items),
+        "succeeded": succeeded,
+        "failed": failed,
+    }
 
-        _GENERIC_BULK_CACHE["complete"][idempotency_key] = batch_result
+    _GENERIC_BULK_CACHE["complete"][idempotency_key] = batch_result
 
-        return batch_result
-
-    except Exception as e:
-        logger.error(f"Bulk complete operation failed: {e}")
-        # Fallback to individual operations if batch fails
-        return _fallback_complete_todo_bulk(idempotency_key, items)
+    return batch_result
 
 
+@_handle_tool_errors("cancel todo bulk")
 def cancel_todo_bulk(idempotency_key: str, items: List[str]) -> Dict[str, Any]:
     """Cancel multiple todos in one batch."""
     cached = _GENERIC_BULK_CACHE["cancel"].get(idempotency_key)
     if cached:
-        return cached
+    return cached
 
     if not isinstance(items, list):
-        return {"error": "items must be list of todo IDs"}
+    return {"error": "items must be list of todo IDs"}
     validation_error = _validate_batch(items, idempotency_key)
     if validation_error:
-        return {"error": validation_error}
+    return {"error": validation_error}
 
     for idx, todo_id in enumerate(items):
-        if not todo_id or not isinstance(todo_id, str) or not todo_id.strip():
-            return {"error": f"Item {idx}: todo_id is required and cannot be empty"}
+    if not todo_id or not isinstance(todo_id, str) or not todo_id.strip():
+        return {"error": f"Item {idx}: todo_id is required and cannot be empty"}
 
-    try:
-        client.ensure_running()
+    client.ensure_running()
 
-        script = build_batch_cancellation_script(items)
-        result = client.executor.execute(script)
+    script = build_batch_cancellation_script(items)
+    result = client.executor.execute(script)
 
-        if not result.success:
-            raise ThingsError(f"Batch cancel failed: {result.error}")
+    if not result.success:
+        raise ThingsError(f"Batch cancel failed: {result.error}")
 
-        todo_names = result.output.strip().split("|") if result.output.strip() else []
+    todo_names = result.output.strip().split("|") if result.output.strip() else []
 
-        batch_id = uuid.uuid4().hex
-        results = []
+    batch_id = uuid.uuid4().hex
+    results = []
 
-        for idx, todo_name in enumerate(todo_names):
-            if idx < len(items):
-                todo_id = items[idx]
-                if todo_name.strip():
-                    results.append(_build_result(idx, todo_id=todo_id))
-                else:
-                    results.append(_build_result(idx, error="Failed to cancel todo"))
+    for idx, todo_name in enumerate(todo_names):
+        if idx < len(items):
+            todo_id = items[idx]
+            if todo_name.strip():
+                results.append(_build_result(idx, todo_id=todo_id))
+            else:
+                results.append(_build_result(idx, error="Failed to cancel todo"))
 
-        while len(results) < len(items):
-            results.append(_build_result(len(results), error="Failed to cancel todo"))
+    while len(results) < len(items):
+        results.append(_build_result(len(results), error="Failed to cancel todo"))
 
-        succeeded = len([r for r in results if "error" not in r])
-        failed = len(results) - succeeded
+    succeeded = len([r for r in results if "error" not in r])
+    failed = len(results) - succeeded
 
-        batch_result = {
-            "results": results,
-            "batch_id": batch_id,
-            "processed": len(items),
-            "succeeded": succeeded,
-            "failed": failed,
-        }
+    batch_result = {
+        "results": results,
+        "batch_id": batch_id,
+        "processed": len(items),
+        "succeeded": succeeded,
+        "failed": failed,
+    }
 
-        _GENERIC_BULK_CACHE["cancel"][idempotency_key] = batch_result
+    _GENERIC_BULK_CACHE["cancel"][idempotency_key] = batch_result
 
-        return batch_result
-
-    except Exception as e:
-        logger.error(f"Bulk cancel operation failed: {e}")
-        return _fallback_cancel_todo_bulk(idempotency_key, items)
+    return batch_result
 
 
+@_handle_tool_errors("delete todo bulk")
 def delete_todo_bulk(idempotency_key: str, items: List[str]) -> Dict[str, Any]:
     """Delete multiple todos in one batch."""
     cached = _GENERIC_BULK_CACHE["delete"].get(idempotency_key)
     if cached:
-        return cached
+    return cached
 
     if not isinstance(items, list):
-        return {"error": "items must be list of todo IDs"}
+    return {"error": "items must be list of todo IDs"}
     validation_error = _validate_batch(items, idempotency_key)
     if validation_error:
-        return {"error": validation_error}
+    return {"error": validation_error}
 
     for idx, todo_id in enumerate(items):
-        if not todo_id or not isinstance(todo_id, str) or not todo_id.strip():
-            return {"error": f"Item {idx}: todo_id is required and cannot be empty"}
+    if not todo_id or not isinstance(todo_id, str) or not todo_id.strip():
+        return {"error": f"Item {idx}: todo_id is required and cannot be empty"}
 
-    try:
-        client.ensure_running()
+    client.ensure_running()
 
-        script = build_batch_delete_script(items)
-        result = client.executor.execute(script)
+    script = build_batch_delete_script(items)
+    result = client.executor.execute(script)
 
-        if not result.success:
-            raise ThingsError(f"Batch delete failed: {result.error}")
+    if not result.success:
+        raise ThingsError(f"Batch delete failed: {result.error}")
 
-        todo_names = result.output.strip().split("|") if result.output.strip() else []
+    todo_names = result.output.strip().split("|") if result.output.strip() else []
 
-        batch_id = uuid.uuid4().hex
-        results = []
+    batch_id = uuid.uuid4().hex
+    results = []
 
-        for idx, todo_name in enumerate(todo_names):
-            if idx < len(items):
-                todo_id = items[idx]
-                if todo_name.strip():
-                    results.append(_build_result(idx, todo_id=todo_id))
-                else:
-                    results.append(_build_result(idx, error="Failed to delete todo"))
+    for idx, todo_name in enumerate(todo_names):
+        if idx < len(items):
+            todo_id = items[idx]
+            if todo_name.strip():
+                results.append(_build_result(idx, todo_id=todo_id))
+            else:
+                results.append(_build_result(idx, error="Failed to delete todo"))
 
-        while len(results) < len(items):
-            results.append(_build_result(len(results), error="Failed to delete todo"))
+    while len(results) < len(items):
+        results.append(_build_result(len(results), error="Failed to delete todo"))
 
-        succeeded = len([r for r in results if "error" not in r])
-        failed = len(results) - succeeded
+    succeeded = len([r for r in results if "error" not in r])
+    failed = len(results) - succeeded
 
-        batch_result = {
-            "results": results,
-            "batch_id": batch_id,
-            "processed": len(items),
-            "succeeded": succeeded,
-            "failed": failed,
-        }
+    batch_result = {
+        "results": results,
+        "batch_id": batch_id,
+        "processed": len(items),
+        "succeeded": succeeded,
+        "failed": failed,
+    }
 
-        _GENERIC_BULK_CACHE["delete"][idempotency_key] = batch_result
+    _GENERIC_BULK_CACHE["delete"][idempotency_key] = batch_result
 
-        return batch_result
-
-    except Exception as e:
-        logger.error(f"Bulk delete operation failed: {e}")
-        return _fallback_delete_todo_bulk(idempotency_key, items)
+    return batch_result
 
 
+@_handle_tool_errors("move todo bulk")
 def move_todo_bulk(idempotency_key: str, items: List[Dict[str, Any]]) -> Dict[str, Any]:
     """Move multiple todos in one call using native batch execution.
 
     Each item: {"todo_id": str, "destination_type": "area|project|list",
-        "destination_name": str}
+    "destination_name": str}
 
     See also: move_todo
     """
     cached = _GENERIC_BULK_CACHE["move"].get(idempotency_key)
     if cached:
-        return cached
+    return cached
 
     validation_error = _validate_batch(items, idempotency_key)
     if validation_error:
-        return {"error": validation_error}
+    return {"error": validation_error}
 
     # Validate each item and format data for AppleScript
     processed_items = []
     for idx, itm in enumerate(items):
-        todo_id = itm.get("todo_id")
-        dest_type = itm.get("destination_type")
-        dest_name = itm.get("destination_name")
-        if not todo_id:
-            return {"error": f"Item {idx}: todo_id is required"}
-        if not dest_type or not dest_name:
-            return {
-                "error": (
-                    f"Item {idx}: destination_type and destination_name are required"
-                )
-            }
-        dest_error = _validate_destination_type(dest_type)
-        if dest_error:
-            return {"error": f"Item {idx}: {dest_error}"}
-        processed_items.append(
-            {
-                "todo_id": todo_id,
-                "destination_type": dest_type,
-                "destination_name": dest_name,
-            }
-        )
-
-    try:
-        client.ensure_running()
-
-        script = build_batch_move_script(processed_items)
-        result = client.executor.execute(script)
-
-        if not result.success:
-            raise ThingsError(f"Batch move failed: {result.error}")
-
-        todo_names = result.output.strip().split("|") if result.output.strip() else []
-
-        batch_id = uuid.uuid4().hex
-        results = []
-
-        for idx, todo_name in enumerate(todo_names):
-            if idx < len(items):
-                todo_id = items[idx].get("todo_id")
-                if todo_name.strip():
-                    results.append(_build_result(idx, todo_id=todo_id))
-                else:
-                    results.append(_build_result(idx, error="Failed to move todo"))
-
-        while len(results) < len(items):
-            results.append(_build_result(len(results), error="Failed to move todo"))
-
-        succeeded = len([r for r in results if "error" not in r])
-        failed = len(results) - succeeded
-
-        batch_result = {
-            "results": results,
-            "batch_id": batch_id,
-            "processed": len(items),
-            "succeeded": succeeded,
-            "failed": failed,
+    todo_id = itm.get("todo_id")
+    dest_type = itm.get("destination_type")
+    dest_name = itm.get("destination_name")
+    if not todo_id:
+        return {"error": f"Item {idx}: todo_id is required"}
+    if not dest_type or not dest_name:
+        return {
+            "error": (
+                f"Item {idx}: destination_type and destination_name are required"
+            )
         }
+    dest_error = _validate_destination_type(dest_type)
+    if dest_error:
+        return {"error": f"Item {idx}: {dest_error}"}
+    processed_items.append(
+        {
+            "todo_id": todo_id,
+            "destination_type": dest_type,
+            "destination_name": dest_name,
+        }
+    )
 
-        _GENERIC_BULK_CACHE["move"][idempotency_key] = batch_result
+    client.ensure_running()
 
-        return batch_result
+    script = build_batch_move_script(processed_items)
+    result = client.executor.execute(script)
 
-    except Exception as e:
-        logger.error(f"Bulk move operation failed: {e}")
-        return _fallback_move_todo_bulk(idempotency_key, items)
+    if not result.success:
+        raise ThingsError(f"Batch move failed: {result.error}")
+
+    todo_names = result.output.strip().split("|") if result.output.strip() else []
+
+    batch_id = uuid.uuid4().hex
+    results = []
+
+    for idx, todo_name in enumerate(todo_names):
+        if idx < len(items):
+            todo_id = items[idx].get("todo_id")
+            if todo_name.strip():
+                results.append(_build_result(idx, todo_id=todo_id))
+            else:
+                results.append(_build_result(idx, error="Failed to move todo"))
+
+    while len(results) < len(items):
+        results.append(_build_result(len(results), error="Failed to move todo"))
+
+    succeeded = len([r for r in results if "error" not in r])
+    failed = len(results) - succeeded
+
+    batch_result = {
+        "results": results,
+        "batch_id": batch_id,
+        "processed": len(items),
+        "succeeded": succeeded,
+        "failed": failed,
+    }
+
+    _GENERIC_BULK_CACHE["move"][idempotency_key] = batch_result
+
+    return batch_result
 
 
+@_handle_tool_errors("update todo bulk")
 def update_todo_bulk(
     idempotency_key: str, items: List[Dict[str, Any]]
 ) -> Dict[str, Any]:
     """Update multiple todos in one batch.
 
     Each item: {"todo_id": str, "title?": str, "notes?": str, "when?": str,
-        "deadline?": str}
+    "deadline?": str}
 
     See also: update_todo
     """
     cached = _GENERIC_BULK_CACHE["update"].get(idempotency_key)
     if cached:
-        return cached
+    return cached
 
     validation_error = _validate_batch(items, idempotency_key)
     if validation_error:
-        return {"error": validation_error}
+    return {"error": validation_error}
 
     processed_items = []
     for idx, itm in enumerate(items):
-        todo_id = itm.get("todo_id")
-        if not todo_id:
-            return {"error": f"Item {idx}: todo_id is required"}
-        processed_item = {"todo_id": todo_id}
-        if "title" in itm and itm["title"]:
-            processed_item["title"] = itm["title"]
-        if "notes" in itm:
-            processed_item["notes"] = itm.get("notes")
-        if "deadline" in itm and itm["deadline"]:
-            date_error = _validate_date_format(itm["deadline"], "deadline")
-            if date_error:
-                return {"error": f"Item {idx}: {date_error}"}
-            processed_item["deadline"] = _format_applescript_date(itm["deadline"])
-        processed_items.append(processed_item)
+    todo_id = itm.get("todo_id")
+    if not todo_id:
+        return {"error": f"Item {idx}: todo_id is required"}
+    processed_item = {"todo_id": todo_id}
+    if "title" in itm and itm["title"]:
+        processed_item["title"] = itm["title"]
+    if "notes" in itm:
+        processed_item["notes"] = itm.get("notes")
+    if "deadline" in itm and itm["deadline"]:
+        date_error = _validate_date_format(itm["deadline"], "deadline")
+        if date_error:
+            return {"error": f"Item {idx}: {date_error}"}
+        processed_item["deadline"] = _format_applescript_date(itm["deadline"])
+    processed_items.append(processed_item)
 
-    try:
-        client.ensure_running()
+    client.ensure_running()
 
-        script = build_batch_update_script(processed_items)
-        result = client.executor.execute(script)
+    script = build_batch_update_script(processed_items)
+    result = client.executor.execute(script)
 
-        if not result.success:
-            raise ThingsError(f"Batch update failed: {result.error}")
+    if not result.success:
+        raise ThingsError(f"Batch update failed: {result.error}")
 
-        todo_names = result.output.strip().split("|") if result.output.strip() else []
+    todo_names = result.output.strip().split("|") if result.output.strip() else []
 
-        batch_id = uuid.uuid4().hex
-        results = []
+    batch_id = uuid.uuid4().hex
+    results = []
 
-        for idx, todo_name in enumerate(todo_names):
-            if idx < len(items):
-                todo_id = items[idx].get("todo_id")
-                if todo_name.strip():
-                    results.append(_build_result(idx, todo_id=todo_id))
-                else:
-                    results.append(_build_result(idx, error="Failed to update todo"))
+    for idx, todo_name in enumerate(todo_names):
+        if idx < len(items):
+            todo_id = items[idx].get("todo_id")
+            if todo_name.strip():
+                results.append(_build_result(idx, todo_id=todo_id))
+            else:
+                results.append(_build_result(idx, error="Failed to update todo"))
 
-        while len(results) < len(items):
-            results.append(_build_result(len(results), error="Failed to update todo"))
+    while len(results) < len(items):
+        results.append(_build_result(len(results), error="Failed to update todo"))
 
-        # Handle scheduling and Someday moves separately
-        for itm in items:
-            when = itm.get("when")
-            if when:
-                when_lower = when.lower()
-                todo_id = itm.get("todo_id")
-                if when_lower == "someday":
-                    try:
-                        move_script = build_move_to_list_script(todo_id, "Someday")
-                        move_result = client.executor.execute(move_script)
-                        if not move_result.success:
-                            logger.warning(
-                                "Failed to move todo %s to Someday: %s",
-                                todo_id,
-                                move_result.error,
-                            )
-                    except Exception as e:
-                        logger.warning(f"Error moving todo {todo_id} to Someday: {e}")
-                else:
-                    try:
-                        from .utils import _schedule_item
+    # Handle scheduling and Someday moves separately
+    for itm in items:
+        when = itm.get("when")
+        if when:
+            when_lower = when.lower()
+            todo_id = itm.get("todo_id")
+            if when_lower == "someday":
+                try:
+                    move_script = build_move_to_list_script(todo_id, "Someday")
+                    move_result = client.executor.execute(move_script)
+                    if not move_result.success:
+                        logger.warning(
+                            "Failed to move todo %s to Someday: %s",
+                            todo_id,
+                            move_result.error,
+                        )
+                except Exception as e:
+                    logger.warning(f"Error moving todo {todo_id} to Someday: {e}")
+            else:
+                try:
+                    from .utils import _schedule_item
 
-                        _schedule_item(todo_id, when, "to do")
-                    except Exception as e:
-                        logger.warning(f"Failed to schedule todo {todo_id}: {e}")
+                    _schedule_item(todo_id, when, "to do")
+                except Exception as e:
+                    logger.warning(f"Failed to schedule todo {todo_id}: {e}")
 
-        succeeded = len([r for r in results if "error" not in r])
-        failed = len(results) - succeeded
+    succeeded = len([r for r in results if "error" not in r])
+    failed = len(results) - succeeded
 
-        batch_result = {
-            "results": results,
-            "batch_id": batch_id,
-            "processed": len(items),
-            "succeeded": succeeded,
-            "failed": failed,
-        }
+    batch_result = {
+        "results": results,
+        "batch_id": batch_id,
+        "processed": len(items),
+        "succeeded": succeeded,
+        "failed": failed,
+    }
 
-        _GENERIC_BULK_CACHE["update"][idempotency_key] = batch_result
+    _GENERIC_BULK_CACHE["update"][idempotency_key] = batch_result
 
-        return batch_result
-
-    except Exception as e:
-        logger.error(f"Bulk update operation failed: {e}")
-        return _fallback_update_todo_bulk(idempotency_key, items)
+    return batch_result
 
 
 # =============================================================================
