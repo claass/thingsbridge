@@ -8,11 +8,12 @@ from .applescript_builder import build_search_script, build_list_script
 from .cache import cached_resource
 from .resources import areas_list, projects_list
 from .things3 import ThingsError, client
-from .utils import _format_applescript_date, _sanitize_applescript_string
+from .utils import _format_applescript_date, _sanitize_applescript_string, _handle_tool_errors
 
 logger = logging.getLogger(__name__)
 
 
+@_handle_tool_errors("search todos")
 def search_todo(
     query: str,
     limit: int = 10,
@@ -48,77 +49,73 @@ def search_todo(
     Returns:
         Formatted search results
     """
-    try:
-        client.ensure_running()
+    client.ensure_running()
 
-        safe_query = _sanitize_applescript_string(query)
+    safe_query = _sanitize_applescript_string(query)
 
-        # Start with the base collection - area or project takes precedence
-        if area:
-            safe_area = _sanitize_applescript_string(area)
-            base_collection = f'to dos of area "{safe_area}"'
-        elif project:
-            safe_project = _sanitize_applescript_string(project)
-            base_collection = f'to dos of project "{safe_project}"'
-        else:
-            base_collection = "to dos"
+    # Start with the base collection - area or project takes precedence
+    if area:
+        safe_area = _sanitize_applescript_string(area)
+        base_collection = f'to dos of area "{safe_area}"'
+    elif project:
+        safe_project = _sanitize_applescript_string(project)
+        base_collection = f'to dos of project "{safe_project}"'
+    else:
+        base_collection = "to dos"
 
-        # Build filtering conditions for the selected collection
-        conditions = []
-        if query:
-            conditions.append(f'name contains "{safe_query}"')
-        if tag:
-            safe_tag = _sanitize_applescript_string(tag)
-            conditions.append(f'tag names contains "{safe_tag}"')
-        if status:
-            conditions.append(f"status is {status.lower()}")
+    # Build filtering conditions for the selected collection
+    conditions = []
+    if query:
+        conditions.append(f'name contains "{safe_query}"')
+    if tag:
+        safe_tag = _sanitize_applescript_string(tag)
+        conditions.append(f'tag names contains "{safe_tag}"')
+    if status:
+        conditions.append(f"status is {status.lower()}")
 
-        # Add date range conditions
-        if due_start:
-            try:
-                conditions.append(f'due date ≥ (date "{_format_applescript_date(due_start)}")')
-            except ValueError:
-                logger.warning(f"Invalid date format for due_start: {due_start}")
+    # Add date range conditions
+    if due_start:
+        try:
+            conditions.append(f'due date ≥ (date "{_format_applescript_date(due_start)}")')
+        except ValueError:
+            logger.warning(f"Invalid date format for due_start: {due_start}")
 
-        if due_end:
-            try:
-                conditions.append(f'due date ≤ (date "{_format_applescript_date(due_end)}")')
-            except ValueError:
-                logger.warning(f"Invalid date format for due_end: {due_end}")
+    if due_end:
+        try:
+            conditions.append(f'due date ≤ (date "{_format_applescript_date(due_end)}")')
+        except ValueError:
+            logger.warning(f"Invalid date format for due_end: {due_end}")
 
-        if scheduled_start:
-            try:
-                conditions.append(f'activation date ≥ (date "{_format_applescript_date(scheduled_start)}")')
-            except ValueError:
-                logger.warning(f"Invalid date format for scheduled_start: {scheduled_start}")
+    if scheduled_start:
+        try:
+            conditions.append(f'activation date ≥ (date "{_format_applescript_date(scheduled_start)}")')
+        except ValueError:
+            logger.warning(f"Invalid date format for scheduled_start: {scheduled_start}")
 
-        if scheduled_end:
-            try:
-                conditions.append(f'activation date ≤ (date "{_format_applescript_date(scheduled_end)}")')
-            except ValueError:
-                logger.warning(f"Invalid date format for scheduled_end: {scheduled_end}")
+    if scheduled_end:
+        try:
+            conditions.append(f'activation date ≤ (date "{_format_applescript_date(scheduled_end)}")')
+        except ValueError:
+            logger.warning(f"Invalid date format for scheduled_end: {scheduled_end}")
 
-        # Combine base collection with filtering conditions
-        if conditions:
-            condition_str = " and ".join(conditions)
-            search_clause = f"{base_collection} whose {condition_str}"
-        else:
-            search_clause = base_collection
+    # Combine base collection with filtering conditions
+    if conditions:
+        condition_str = " and ".join(conditions)
+        search_clause = f"{base_collection} whose {condition_str}"
+    else:
+        search_clause = base_collection
 
-        script = build_search_script(search_clause, limit, safe_query)
+    script = build_search_script(search_clause, limit, safe_query)
 
-        result = client.executor.execute(script)
+    result = client.executor.execute(script)
 
-        if not result.success:
-            raise ThingsError(f"Search failed: {result.error}")
+    if not result.success:
+        raise ThingsError(f"Search failed: {result.error}")
 
-        return result.output
-
-    except Exception as e:
-        logger.error(f"Error searching: {e}")
-        return f"❌ Search failed: {str(e)}"
+    return result.output
 
 
+@_handle_tool_errors("search due this week")
 def search_due_this_week() -> str:
     """
     Find all tasks due this week (next 7 days).
@@ -137,6 +134,7 @@ def search_due_this_week() -> str:
     )
 
 
+@_handle_tool_errors("search scheduled this week")
 def search_scheduled_this_week() -> str:
     """
     Find all tasks scheduled this week (next 7 days).
@@ -155,6 +153,7 @@ def search_scheduled_this_week() -> str:
     )
 
 
+@_handle_tool_errors("search overdue")
 def search_overdue() -> str:
     """
     Find all overdue tasks (due date before today).
@@ -172,6 +171,7 @@ def search_overdue() -> str:
     )
 
 
+@_handle_tool_errors("list today tasks")
 def list_today_tasks() -> str:
     """
     Get today's scheduled tasks.
@@ -179,23 +179,19 @@ def list_today_tasks() -> str:
     Returns:
         Formatted list of today's tasks
     """
-    try:
-        client.ensure_running()
+    client.ensure_running()
 
-        script = build_list_script("Today", "Today's Tasks")
+    script = build_list_script("Today", "Today's Tasks")
 
-        result = client.executor.execute(script)
+    result = client.executor.execute(script)
 
-        if not result.success:
-            raise ThingsError(f"Failed to get today's tasks: {result.error}")
+    if not result.success:
+        raise ThingsError(f"Failed to get today's tasks: {result.error}")
 
-        return result.output
-
-    except Exception as e:
-        logger.error(f"Error getting today's tasks: {e}")
-        return f"❌ Failed to get today's tasks: {str(e)}"
+    return result.output
 
 
+@_handle_tool_errors("list inbox items")
 def list_inbox_items() -> str:
     """
     Get items in the inbox.
@@ -203,28 +199,25 @@ def list_inbox_items() -> str:
     Returns:
         Formatted list of inbox items
     """
-    try:
-        client.ensure_running()
+    client.ensure_running()
 
-        script = build_list_script("Inbox", "Inbox")
+    script = build_list_script("Inbox", "Inbox")
 
-        result = client.executor.execute(script)
+    result = client.executor.execute(script)
 
-        if not result.success:
-            raise ThingsError(f"Failed to get inbox items: {result.error}")
+    if not result.success:
+        raise ThingsError(f"Failed to get inbox items: {result.error}")
 
-        return result.output
-
-    except Exception as e:
-        logger.error(f"Error getting inbox items: {e}")
-        return f"❌ Failed to get inbox items: {str(e)}"
+    return result.output
 
 
+@_handle_tool_errors("list areas")
 def list_areas() -> List[Dict[str, Any]]:
     """Return available Things areas as JSON objects."""
     return areas_list()
 
 
+@_handle_tool_errors("list projects")
 def list_projects() -> List[Dict[str, Any]]:
     """Return available Things projects as JSON objects."""
     return projects_list()
@@ -272,21 +265,19 @@ def _fetch_tags_uncached() -> str:
 
 
 @cached_resource("list_tags", ttl_seconds=300)  # 5 minutes
+@_handle_tool_errors("list tags")
 def list_tags() -> str:
     """
     Get all available tags in Things 3 (cached for 5 minutes).
 
     Returns:
-        Formatted list of tags
+    Formatted list of tags
     """
-    try:
-        logger.debug("Fetching tags list (cache miss or expired)")
-        return _fetch_tags_uncached()
-    except Exception as e:
-        logger.error(f"Error getting tags: {e}")
-        return f"❌ Failed to get tags: {str(e)}"
+    logger.debug("Fetching tags list (cache miss or expired)")
+    return _fetch_tags_uncached()
 
 
+@_handle_tool_errors("list anytime tasks")
 def list_anytime_tasks() -> str:
     """
     Get items in the Anytime list.
@@ -294,23 +285,19 @@ def list_anytime_tasks() -> str:
     Returns:
         Formatted list of Anytime items
     """
-    try:
-        client.ensure_running()
+    client.ensure_running()
 
-        script = build_list_script("Anytime", "Anytime Tasks")
+    script = build_list_script("Anytime", "Anytime Tasks")
 
-        result = client.executor.execute(script)
+    result = client.executor.execute(script)
 
-        if not result.success:
-            raise ThingsError(f"Failed to get Anytime tasks: {result.error}")
+    if not result.success:
+        raise ThingsError(f"Failed to get Anytime tasks: {result.error}")
 
-        return result.output
-
-    except Exception as e:
-        logger.error(f"Error getting Anytime tasks: {e}")
-        return f"❌ Failed to get Anytime tasks: {str(e)}"
+    return result.output
 
 
+@_handle_tool_errors("list someday tasks")
 def list_someday_tasks() -> str:
     """
     Get items in the Someday list.
@@ -318,66 +305,54 @@ def list_someday_tasks() -> str:
     Returns:
         Formatted list of Someday items
     """
-    try:
-        client.ensure_running()
+    client.ensure_running()
 
-        script = build_list_script("Someday", "Someday Tasks")
+    script = build_list_script("Someday", "Someday Tasks")
 
-        result = client.executor.execute(script)
+    result = client.executor.execute(script)
 
-        if not result.success:
-            raise ThingsError(f"Failed to get Someday tasks: {result.error}")
+    if not result.success:
+        raise ThingsError(f"Failed to get Someday tasks: {result.error}")
 
-        return result.output
-
-    except Exception as e:
-        logger.error(f"Error getting Someday tasks: {e}")
-        return f"❌ Failed to get Someday tasks: {str(e)}"
+    return result.output
 
 
+@_handle_tool_errors("list upcoming tasks")
 def list_upcoming_tasks() -> str:
     """
     Get items in the Upcoming list.
 
     Returns:
-        Formatted list of Upcoming items
+    Formatted list of Upcoming items
     """
-    try:
-        client.ensure_running()
+    client.ensure_running()
 
-        script = build_list_script("Upcoming", "Upcoming Tasks")
+    script = build_list_script("Upcoming", "Upcoming Tasks")
 
-        result = client.executor.execute(script)
+    result = client.executor.execute(script)
 
-        if not result.success:
-            raise ThingsError(f"Failed to get Upcoming tasks: {result.error}")
+    if not result.success:
+        raise ThingsError(f"Failed to get Upcoming tasks: {result.error}")
 
-        return result.output
-
-    except Exception as e:
-        logger.error(f"Error getting Upcoming tasks: {e}")
-        return f"❌ Failed to get Upcoming tasks: {str(e)}"
+    return result.output
 
 
+@_handle_tool_errors("list logbook items")
 def list_logbook_items() -> str:
     """
     Get completed items from the Logbook.
 
     Returns:
-        Formatted list of completed items
+    Formatted list of completed items
     """
-    try:
-        client.ensure_running()
+    client.ensure_running()
 
-        script = build_list_script("Logbook", "Logbook (Completed Items)")
+    script = build_list_script("Logbook", "Logbook (Completed Items)")
 
-        result = client.executor.execute(script)
+    result = client.executor.execute(script)
 
-        if not result.success:
-            raise ThingsError(f"Failed to get Logbook items: {result.error}")
+    if not result.success:
+        raise ThingsError(f"Failed to get Logbook items: {result.error}")
 
-        return result.output
+    return result.output
 
-    except Exception as e:
-        logger.error(f"Error getting Logbook items: {e}")
-        return f"❌ Failed to get Logbook items: {str(e)}"
