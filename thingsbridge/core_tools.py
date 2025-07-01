@@ -18,7 +18,7 @@ from .applescript_builder import (
     build_tag_creation_script,
     build_project_delete_script,
 )
-from .cache import invalidate_resource_cache
+from .cache import invalidate_resource_cache, ShelveCache, _CACHE_DIR
 from .resources import areas_list, projects_list
 from .things3 import ThingsError, client
 from .utils import _format_applescript_date, _handle_tool_errors, _schedule_item
@@ -26,7 +26,7 @@ from .utils import _format_applescript_date, _handle_tool_errors, _schedule_item
 logger = logging.getLogger(__name__)
 
 # Cache for deduplicating create_todo operations when client_id is provided
-_CREATE_TODO_CACHE: Dict[str, str] = {}
+_CREATE_TODO_CACHE = ShelveCache(_CACHE_DIR / "create_todo.db")
 
 
 @_handle_tool_errors("create todo")
@@ -60,8 +60,8 @@ def create_todo(
     See also: create_todo_bulk
     """
     # Ensure Things 3 is running
-    if client_id and client_id in _CREATE_TODO_CACHE:
-        cached_id = _CREATE_TODO_CACHE[client_id]
+    if client_id and _CREATE_TODO_CACHE.get(client_id):
+        cached_id = _CREATE_TODO_CACHE.get(client_id)
         tag_info = f" with tags: {', '.join(tags)}" if tags else ""
         return f"✅ Created todo '{title}'{tag_info} with ID: {cached_id}"
 
@@ -125,7 +125,7 @@ def create_todo(
 
     tag_info = f" with tags: {', '.join(tags)}" if tags else ""
     if client_id:
-        _CREATE_TODO_CACHE[client_id] = todo_id
+        _CREATE_TODO_CACHE.set(client_id, todo_id)
     return f"✅ Created todo '{title}'{tag_info} with ID: {todo_id}"
 
 
