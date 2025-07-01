@@ -27,6 +27,8 @@ from thingsbridge.tools import (
 )
 from .test_helpers import create_todo_tracked, create_project_tracked, create_tag_tracked, unique_test_name
 
+pytestmark = pytest.mark.integration
+
 
 # Only run these tests if Things 3 is available
 def things3_available():

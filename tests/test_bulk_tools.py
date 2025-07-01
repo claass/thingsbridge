@@ -2,6 +2,8 @@
 
 import uuid
 import pytest
+
+pytestmark = pytest.mark.integration
 from thingsbridge.tools import (
     complete_todo_bulk,
     cancel_todo_bulk,
