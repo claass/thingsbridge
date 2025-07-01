@@ -3,6 +3,8 @@
 import pytest
 from datetime import date, timedelta
 
+pytestmark = pytest.mark.integration
+
 from thingsbridge.tools import (
     create_todo,
     search_todo,

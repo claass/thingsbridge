@@ -3,6 +3,8 @@
 import pytest
 from thingsbridge.things3 import Things3Client, ThingsError
 
+pytestmark = pytest.mark.integration
+
 # Check if Things 3 is available for testing
 def things3_available():
     """Check if Things 3 is available for testing."""
