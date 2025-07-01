@@ -335,6 +335,91 @@ def build_move_to_list_script(todo_id: str, list_name: str) -> str:
     """
 
 
+def build_project_cancellation_script(project_id: str) -> str:
+    """Build AppleScript for canceling a project."""
+    safe_id = _sanitize_applescript_string(project_id)
+
+    return f"""
+    tell application "Things3"
+        set targetProject to project id "{safe_id}"
+        set status of targetProject to canceled
+        return name of targetProject
+    end tell
+    """
+
+
+def build_tag_creation_script(name: str, parent_tag: Optional[str] = None) -> str:
+    """Build AppleScript for creating a tag, optionally with a parent tag."""
+    safe_name = _sanitize_applescript_string(name)
+
+    script = f"""
+    tell application "Things3"
+        set newTag to make new tag with properties {{name:"{safe_name}"}}
+        set tagId to id of newTag
+    """
+
+    if parent_tag:
+        safe_parent = _sanitize_applescript_string(parent_tag)
+        script += f"""
+        try
+            set parentTagObj to tag "{safe_parent}"
+            set parent tag of newTag to parentTagObj
+        end try
+        """
+
+    script += f"""
+        return name of newTag & " (ID: " & tagId & ")"
+    end tell
+    """
+    return script
+
+
+def build_project_delete_script(project_id: str) -> str:
+    """Build AppleScript for deleting a project."""
+    safe_id = _sanitize_applescript_string(project_id)
+
+    return f"""
+    tell application "Things3"
+        set targetProject to project id "{safe_id}"
+        set projectName to name of targetProject
+        move targetProject to list "Trash"
+        return projectName
+    end tell
+    """
+
+
+def build_tags_list_script() -> str:
+    """Build AppleScript for listing all tags."""
+    return """
+    tell application "Things3"
+        set allTags to tags
+        set tagCount to count of allTags
+        set resultText to "Available Tags (" & tagCount & " tags):\n\n"
+
+        repeat with i from 1 to tagCount
+            set currentTag to item i of allTags
+            set tagName to name of currentTag
+            set tagId to id of currentTag
+
+            set resultText to resultText & "• " & tagName & " (ID: " & tagId & ")"
+
+            -- Check for parent tag
+            try
+                set parentTag to parent tag of currentTag
+                if parentTag is not missing value then
+                    set parentName to name of parentTag
+                    set resultText to resultText & " [Parent: " & parentName & "]"
+                end if
+            end try
+
+            set resultText to resultText & "\n"
+        end repeat
+
+        return resultText
+    end tell
+    """
+
+
 # =============================================================================
 # BATCH OPERATIONS - Native AppleScript batch processing
 # =============================================================================

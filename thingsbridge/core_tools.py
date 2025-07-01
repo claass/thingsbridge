@@ -14,6 +14,9 @@ from .applescript_builder import (
     build_tag_addition_script,
     build_get_name_script,
     build_move_to_list_script,
+    build_project_cancellation_script,
+    build_tag_creation_script,
+    build_project_delete_script,
 )
 from .cache import invalidate_resource_cache
 from .resources import areas_list, projects_list
@@ -422,13 +425,7 @@ def cancel_project(project_id: str) -> str:
 
     safe_id = project_id.replace('"', '\\"')
 
-    script = f"""
-    tell application "Things3"
-        set targetProject to project id "{safe_id}"
-        set status of targetProject to canceled
-        return name of targetProject
-    end tell
-    """
+    script = build_project_cancellation_script(safe_id)
 
     result = client.executor.execute(script)
 
@@ -459,26 +456,11 @@ def create_tag(name: str, parent_tag: Optional[str] = None) -> str:
 
     safe_name = name.replace('"', '\\"')
 
-    script = f'''
-    tell application "Things3"
-        set newTag to make new tag with properties {{name:"{safe_name}"}}
-        set tagId to id of newTag
-        '''
-
-    # Add parent tag relationship if specified
+    safe_parent = None
     if parent_tag:
         safe_parent = parent_tag.replace('"', '\\"')
-        script += f'''
-        try
-            set parentTagObj to tag "{safe_parent}"
-            set parent tag of newTag to parentTagObj
-        end try
-        '''
 
-    script += '''
-        return name of newTag & " (ID: " & tagId & ")"
-    end tell
-    '''
+    script = build_tag_creation_script(safe_name, safe_parent)
 
     result = client.executor.execute(script)
 
@@ -543,14 +525,7 @@ def delete_project(project_id: str) -> str:
 
     safe_id = project_id.replace('"', '\\"')
 
-    script = f"""
-    tell application "Things3"
-        set targetProject to project id "{safe_id}"
-        set projectName to name of targetProject
-        move targetProject to list "Trash"
-        return projectName
-    end tell
-    """
+    script = build_project_delete_script(safe_id)
 
     result = client.executor.execute(script)
 
