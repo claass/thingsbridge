@@ -360,6 +360,7 @@ delete_project_tool = mcp.tool(
     mime_type="application/json",
 )
 def get_areas():
+    """Return cached list of Things areas as JSON objects."""
     return areas_list()
 
 
@@ -370,6 +371,7 @@ def get_areas():
     mime_type="application/json",
 )
 def get_projects():
+    """Return cached list of Things projects as JSON objects."""
     return projects_list()
 
 
@@ -380,6 +382,7 @@ def get_projects():
     mime_type="application/json",
 )
 def get_today():
+    """Return today's scheduled tasks."""
     return today_tasks()
 
 
@@ -390,6 +393,7 @@ def get_today():
     mime_type="application/json",
 )
 def get_inbox():
+    """Return items currently in the inbox."""
     return inbox_items()
 
 

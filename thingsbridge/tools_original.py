@@ -570,6 +570,7 @@ def _validate_batch(items: List[Dict[str, Any]], idempotency_key: str) -> Option
 
 
 def _build_result(index: int, todo_id: str = None, error: str = None):
+    """Return standardized result object for bulk operations."""
     if error:
         return {"index": index, "error": {"msg": error}}
     return {"index": index, "id": todo_id}
