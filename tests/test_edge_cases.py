@@ -6,12 +6,12 @@ from datetime import date, timedelta
 pytestmark = pytest.mark.integration
 
 from thingsbridge.tools import (
-    create_todo,
     search_todo,
     search_due_this_week,
     search_overdue,
     update_todo,
 )
+from .test_helpers import create_todo_tracked, unique_test_name
 
 
 def things3_available():
@@ -43,7 +43,7 @@ def test_create_todo_invalid_date_formats():
     ]
     
     for invalid_date in invalid_dates:
-        result = create_todo(f"Test Invalid Date {invalid_date}", when=invalid_date)
+        result = create_todo_tracked(unique_test_name(f"Test Invalid Date {invalid_date}"), when=invalid_date)
         # Should either succeed (ignoring invalid date) or fail gracefully
         assert isinstance(result, str)
         assert not result.startswith("Traceback")  # No uncaught exceptions
@@ -81,7 +81,7 @@ def test_edge_case_date_values():
     ]
     
     for edge_date in edge_dates:
-        result = create_todo(f"Test Edge Date {edge_date}", when=edge_date)
+        result = create_todo_tracked(unique_test_name(f"Test Edge Date {edge_date}"), when=edge_date)
         assert isinstance(result, str)
 
 
@@ -102,7 +102,7 @@ def test_special_characters_in_title():
     ]
     
     for title in special_titles:
-        result = create_todo(title)
+        result = create_todo_tracked(title)
         assert isinstance(result, str)
         # Should either succeed or fail gracefully, but not crash
 
@@ -113,7 +113,7 @@ def test_very_long_inputs():
     long_title = "A" * 1000
     long_notes = "B" * 5000
     
-    result = create_todo(long_title, notes=long_notes)
+    result = create_todo_tracked(unique_test_name("Long Title Test"), notes=long_notes)
     assert isinstance(result, str)
 
 
@@ -121,7 +121,7 @@ def test_very_long_inputs():
 def test_empty_and_none_inputs():
     """Test with empty and None inputs."""
     # Empty title (should fail)
-    result = create_todo("")
+    result = create_todo_tracked("")
     assert isinstance(result, str)
     
     # Empty query in search
@@ -173,7 +173,7 @@ def test_search_with_zero_limit():
 def test_multiple_operations_sequence():
     """Test sequence of operations to ensure state consistency."""
     # Create a todo
-    create_result = create_todo("Test Sequence", when="today")
+    create_result = create_todo_tracked(unique_test_name("Test Sequence"), when="today")
     assert "✅ Created todo" in create_result
     
     # Search for it

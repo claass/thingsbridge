@@ -5,9 +5,6 @@ import pytest
 from thingsbridge.tools import (
     cancel_project,
     cancel_todo,
-    create_project,
-    create_tag,
-    create_todo,
     delete_project,
     delete_todo,
     list_anytime_tasks,
@@ -57,7 +54,7 @@ def test_create_todo_basic():
 @pytest.mark.skipif(not things3_available(), reason="Things 3 not available")
 def test_create_todo_with_scheduling():
     """Test todo creation with scheduling."""
-    result = create_todo("Scheduled Todo", "Due today", when="today")
+    result = create_todo_tracked(unique_test_name("Scheduled Todo"), "Due today", when="today")
     assert "✅ Created todo" in result
     assert "Scheduled Todo" in result
 
@@ -65,7 +62,7 @@ def test_create_todo_with_scheduling():
 @pytest.mark.skipif(not things3_available(), reason="Things 3 not available")
 def test_create_todo_with_tags():
     """Test todo creation with tags."""
-    result = create_todo("Tagged Todo", "Has tags", tags=["test", "mcp"])
+    result = create_todo_tracked(unique_test_name("Tagged Todo"), "Has tags", tags=["test", "mcp"])
     assert "✅ Created todo" in result
     assert "Tagged Todo" in result
 
@@ -73,7 +70,7 @@ def test_create_todo_with_tags():
 @pytest.mark.skipif(not things3_available(), reason="Things 3 not available")
 def test_create_project():
     """Test project creation."""
-    result = create_project("Test Project from MCP", "Project notes")
+    result = create_project_tracked(unique_test_name("Test Project from MCP"), "Project notes")
     assert "📁 Created project" in result
     assert "Test Project from MCP" in result
     assert "ID:" in result
@@ -132,7 +129,7 @@ def test_tools_handle_errors_gracefully():
         pytest.skip("Things 3 is available, cannot test error handling")
 
     # These should return error messages, not raise exceptions
-    result = create_todo("Test")
+    result = create_todo_tracked(unique_test_name("Test"))
     assert "❌" in result or "✅" in result  # Either error or success
 
     result = list_inbox_items()
@@ -149,7 +146,7 @@ def test_tools_handle_errors_gracefully():
 @pytest.mark.skipif(not things3_available(), reason="Things 3 not available")
 def test_create_todo_scheduling_today():
     """Test creating todo scheduled for today."""
-    result = create_todo("Test Today", when="today")
+    result = create_todo_tracked(unique_test_name("Test Today"), when="today")
     assert "✅ Created todo" in result
     assert "Test Today" in result
     # TODO: Could add verification that item appears in Today list
@@ -158,7 +155,7 @@ def test_create_todo_scheduling_today():
 @pytest.mark.skipif(not things3_available(), reason="Things 3 not available")
 def test_create_todo_scheduling_tomorrow():
     """Test creating todo scheduled for tomorrow."""
-    result = create_todo("Test Tomorrow", when="tomorrow")
+    result = create_todo_tracked(unique_test_name("Test Tomorrow"), when="tomorrow")
     assert "✅ Created todo" in result
     assert "Test Tomorrow" in result
 
@@ -166,7 +163,7 @@ def test_create_todo_scheduling_tomorrow():
 @pytest.mark.skipif(not things3_available(), reason="Things 3 not available")
 def test_create_todo_scheduling_specific_date():
     """Test creating todo scheduled for specific date."""
-    result = create_todo("Test Specific Date", when="2025-12-31")
+    result = create_todo_tracked(unique_test_name("Test Specific Date"), when="2025-12-31")
     assert "✅ Created todo" in result
     assert "Test Specific Date" in result
 
@@ -174,7 +171,7 @@ def test_create_todo_scheduling_specific_date():
 @pytest.mark.skipif(not things3_available(), reason="Things 3 not available")
 def test_create_todo_scheduling_someday():
     """Test creating todo for someday."""
-    result = create_todo("Test Someday", when="someday")
+    result = create_todo_tracked(unique_test_name("Test Someday"), when="someday")
     assert "✅ Created todo" in result
     assert "Test Someday" in result
 
@@ -182,8 +179,8 @@ def test_create_todo_scheduling_someday():
 @pytest.mark.skipif(not things3_available(), reason="Things 3 not available")
 def test_create_todo_with_both_when_and_deadline():
     """Test creating todo with both start date and deadline."""
-    result = create_todo(
-        "Test Both Dates",
+    result = create_todo_tracked(
+        unique_test_name("Test Both Dates"),
         when="2025-07-01",
         deadline="2025-07-10"
     )
@@ -195,7 +192,7 @@ def test_create_todo_with_both_when_and_deadline():
 def test_update_todo_scheduling():
     """Test updating todo scheduling."""
     # First create a todo
-    create_result = create_todo("Test Update Scheduling")
+    create_result = create_todo_tracked(unique_test_name("Test Update Scheduling"))
     assert "✅ Created todo" in create_result
     
     # Extract ID (this is brittle but works for testing)
@@ -280,7 +277,7 @@ def test_search_todo_combined_filters():
 @pytest.mark.skipif(not things3_available(), reason="Things 3 not available")
 def test_create_todo_invalid_date_format():
     """Test creating todo with invalid date format."""
-    result = create_todo("Test Invalid Date", when="invalid-date")
+    result = create_todo_tracked(unique_test_name("Test Invalid Date"), when="invalid-date")
     # Should still create the todo but log a warning about the date
     assert ("✅ Created todo" in result) or ("❌" in result)
 
@@ -547,7 +544,7 @@ def test_list_logbook_items():
 def test_cancel_todo():
     """Test cancel_todo function."""
     # First create a todo to cancel
-    create_result = create_todo("Test Cancel Todo")
+    create_result = create_todo_tracked(unique_test_name("Test Cancel Todo"))
     assert "✅ Created todo" in create_result
     
     # Extract ID
@@ -563,7 +560,7 @@ def test_cancel_todo():
 def test_cancel_project():
     """Test cancel_project function."""
     # First create a project to cancel
-    create_result = create_project("Test Cancel Project")
+    create_result = create_project_tracked(unique_test_name("Test Cancel Project"))
     assert "📁 Created project" in create_result
     
     # Extract ID
@@ -579,7 +576,7 @@ def test_cancel_project():
 def test_delete_todo():
     """Test delete_todo function."""
     # First create a todo to delete
-    create_result = create_todo("Test Delete Todo")
+    create_result = create_todo_tracked(unique_test_name("Test Delete Todo"))
     assert "✅ Created todo" in create_result
     
     # Extract ID
@@ -595,7 +592,7 @@ def test_delete_todo():
 def test_delete_project():
     """Test delete_project function."""
     # First create a project to delete
-    create_result = create_project("Test Delete Project")
+    create_result = create_project_tracked(unique_test_name("Test Delete Project"))
     assert "📁 Created project" in create_result
     
     # Extract ID

@@ -485,7 +485,7 @@ def build_batch_todo_creation_script(items: list) -> str:
     result_ids = [f"todoId{i}" for i in range(len(items))]
     result_list = "{" + ", ".join(result_ids) + "}"
 
-    commands_str = "\\n            ".join(todo_commands)
+    commands_str = "\n            ".join(todo_commands)
 
     return f"""
     tell application "Things3"
@@ -527,7 +527,7 @@ def build_batch_completion_script(todo_ids: list) -> str:
     result_names = [f"todoName{i}" for i in range(len(todo_ids))]
     result_list = "{" + ", ".join(result_names) + "}"
 
-    commands_str = "\\n            ".join(completion_commands)
+    commands_str = "\n            ".join(completion_commands)
 
     return f"""
     tell application "Things3"
@@ -647,7 +647,7 @@ def build_batch_update_script(updates: list) -> str:
     result_names = [f"todoName{i}" for i in range(len(updates))]
     result_list = "{" + ", ".join(result_names) + "}"
 
-    commands_str = "\\n            ".join(update_commands)
+    commands_str = "\n            ".join(update_commands)
 
     return f"""
     tell application "Things3"
@@ -699,7 +699,7 @@ def build_batch_move_script(moves: list) -> str:
     result_names = [f"todoName{i}" for i in range(len(moves))]
     result_list = "{" + ", ".join(result_names) + "}"
 
-    commands_str = "\\n            ".join(move_commands)
+    commands_str = "\n            ".join(move_commands)
 
     return f"""
     tell application "Things3"

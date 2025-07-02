@@ -5,6 +5,7 @@ from thingsbridge.applescript import AppleScriptResult
 from thingsbridge.core_tools import create_todo, update_todo, _CREATE_TODO_CACHE
 from thingsbridge.search_tools import list_areas
 from thingsbridge.things3 import client
+from .test_helpers import unique_test_name
 
 
 def _mock_result(success=True, output="", error=None):
@@ -20,7 +21,7 @@ def test_create_todo_success(monkeypatch):
     mock_execute = MagicMock(return_value=_mock_result(True, "123"))
     monkeypatch.setattr(client.executor, "execute", mock_execute)
 
-    resp = create_todo("My Task")
+    resp = create_todo(unique_test_name("My Task"))
 
     assert resp == "✅ Created todo 'My Task' with ID: 123"
     mock_execute.assert_called_once()
@@ -31,7 +32,7 @@ def test_create_todo_failure(monkeypatch):
     mock_execute = MagicMock(return_value=_mock_result(False, "", "boom"))
     monkeypatch.setattr(client.executor, "execute", mock_execute)
 
-    resp = create_todo("Fail Task")
+    resp = create_todo(unique_test_name("Fail Task"))
 
     assert "❌ Failed to create todo" in resp
     assert "boom" in resp
@@ -54,8 +55,8 @@ def test_create_todo_idempotent(monkeypatch):
     mock_execute = MagicMock(return_value=_mock_result(True, "XYZ"))
     monkeypatch.setattr(client.executor, "execute", mock_execute)
 
-    first = create_todo("Cache", client_id="cid")
-    second = create_todo("Cache", client_id="cid")
+    first = create_todo(unique_test_name("Cache"), client_id="cid")
+    second = create_todo(unique_test_name("Cache"), client_id="cid")
 
     assert first == "✅ Created todo 'Cache' with ID: XYZ"
     assert second == first
