@@ -58,6 +58,15 @@ python -m thingsbridge.server
 - **AppleScript Bridge**: Executes Things 3 commands via subprocess
 - **Python 3.10+**: Required for FastMCP compatibility
 
+The `server.py` module boots the FastMCP server and registers all
+available tools and resources. Individual tool implementations live in
+`core_tools.py`, `search_tools.py`, and `bulk_tools.py`. These modules
+construct AppleScript snippets via helpers in `applescript_builder.py`
+and execute them through `applescript.py`. Results are cached using the
+utilities in `cache.py` and exposed as MCP resources via functions in
+`resources.py`. The lightweight `tools.py` file re-exports all public
+tool functions for backward compatibility.
+
 ## Project Progress
 - Check PROJECT_PLAN.md for detailed progress tracking
 - Update checkboxes as tasks are completed

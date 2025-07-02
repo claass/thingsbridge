@@ -28,6 +28,26 @@ cd thingsbridge
 pip install -e .
 ```
 
+## Getting Started
+
+Create a virtual environment and install the development dependencies:
+
+```bash
+python3 -m venv venv
+source venv/bin/activate
+pip install -e .[dev]
+```
+
+Run the test suite and start the server:
+
+```bash
+python -m pytest -v
+python -m thingsbridge.server
+```
+
+Once running, visit `http://localhost:8000/schema` to view the available tools
+and resources.
+
 ## Running
 
 After installation the server can be started with the provided console script:
